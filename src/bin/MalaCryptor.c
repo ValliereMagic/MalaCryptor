@@ -11,59 +11,36 @@ long get_file_size(char* file_name) {
     long size;
     FILE *file;
 
+    //open the file in the mode to read bytes
     file = fopen(file_name, "rb");
     
+    //make sure that the file exists.
     if (file == NULL) {
         fprintf(stderr, "Error. Unable to determine the size of %s. File pointer is NULL.\n", file_name);
         return -1;
     }
 
+    //go to the end of the file
     fseek(file, 0, SEEK_END);
+    
+    //record the length of the file in size
     size = ftell(file);
+    
+    //close the file
     fclose(file);
 
     return size;
 }
 
 int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
-
-    //buffer to read in a chunk of the file to encrypt
-    unsigned char in_buffer[CHUNK_SIZE];
-
-    //buffer to write a chunk to the destination encrypted file
-    unsigned char out_buffer[CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES];
-
-    //where the key is going to be stored when it is read in
-
-    unsigned char encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
-
-    //small header at the start of the file required to be able to decrypt said file
-    unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
-
-    //encryption state
-    crypto_secretstream_xchacha20poly1305_state state;
-
-    //pointers for the input and output file
-    FILE *file_in, *file_out, *key_file;
-
-    //length of output buffer for writing to file
-    unsigned long long out_buffer_length;
-
-    //length in bytes of the input to encrypt
-    size_t in_buffer_length;
-
-    //end of file
-    int eof;
-
-    //tag to specify what to do with the specific message being processed
-    unsigned char tag;
+    #include "define_vars.h"
 
     //read the URIs to the source, target, and key file
     file_in = fopen(source_file, "rb");
     file_out = fopen(target_file, "wb");
     key_file = fopen(key_file_path, "rb");
 
-    if ((file_in == NULL) || (file_out == NULL) || (key_file == NULL)) {
+    if ((file_in == NULL) || (key_file == NULL)) {
         fprintf(stderr, "Error. Either the input file, or key file doesn't exist at the location speficied. Exiting.\n");
         return -1;
     }
@@ -82,7 +59,37 @@ int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
     crypto_secretstream_xchacha20poly1305_init_push(&state, header, encryption_key);
 
     //write the header to the start of the output file
-    fwrite(header, 1, crypto_secretstream_xchacha20poly1305_HEADERBYTES, file_out);
+    fwrite(header, 1, sizeof(header), file_out);
 
 
+    do {
+        //read in a piece of the file into the buffer, and record it's length
+        in_buffer_length = fread(in_buffer, 1, sizeof(in_buffer), file_in);
+        
+        //check if we have reached the end of the file yet
+        eof = feof(file_in);
+        
+        //if reached the end of the file, set tag to FINAL TAG, otherwise set it to 0
+        tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
+
+        //encrypt the current in_buffer piece of the file, and store it in the out_buffer to be written to the
+        //out file
+        crypto_secretstream_xchacha20poly1305_push(&state, out_buffer, &out_buffer_length, in_buffer, in_buffer_length,
+                                                   NULL, 0, tag);
+
+        //write the encrypted buffer to the resultant out file
+        fwrite(out_buffer, 1, (size_t) out_buffer_length, file_out);
+
+    //loop until the end of the file has been reached.
+    } while (!eof);
+
+    //close the remaining open files.
+    fclose(file_in);
+    fclose(file_out);
+    
+    return 0;
+}
+
+int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
+    return 0;
 }
