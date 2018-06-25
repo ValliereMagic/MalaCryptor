@@ -14,7 +14,7 @@ int generate_key(char* dest_file) {
     crypto_secretstream_xchacha20poly1305_keygen(encryption_key);
 
     //store new encryption key into file
-    fwrite(encryption_key, 1, sizeof(encryption_key, key_file_new));
+    fwrite(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES, key_file_new);
 
     //close key file
     fclose(key_file_new);
@@ -75,12 +75,12 @@ int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
     crypto_secretstream_xchacha20poly1305_init_push(&state, header, encryption_key);
 
     //write the header to the start of the output file
-    fwrite(header, 1, sizeof(header), file_out);
+    fwrite(header, 1, crypto_secretstream_xchacha20poly1305_HEADERBYTES, file_out);
 
 
     do {
         //read in a piece of the file into the buffer, and record it's length
-        in_buffer_length = fread(in_buffer, 1, sizeof(in_buffer), file_in);
+        in_buffer_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
         
         //check if we have reached the end of the file yet
         eof = feof(file_in);
@@ -122,7 +122,7 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
     #include "common_file_work.h"
 
     //read the header information from the encrypted file into the header
-    fread(header, 1, sizeof(header), file_in);
+    fread(header, 1, crypto_secretstream_xchacha20poly1305_HEADERBYTES, file_in);
 
     if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, encryption_key) != 0) {
         fprintf(stderr, "Error. Incomplete header in file to decrypt. Exiting.\n");
@@ -131,7 +131,7 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
 
     do {
         //read piece of file to encrypt from the source file
-        in_buffer_length = fread(in_buffer, 1, sizeof(in_buffer), file_in);
+        in_buffer_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
 
         //determine whether we are at the end of the file
         eof = feof(file_in);
@@ -163,15 +163,118 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
     return decrypt_return_status_cleanup(file_in, file_out, &ret_value);
 }
 
+void help(void) {
+    printf("MalaCryptor Help:\n");
+    printf("\tOptions:\n");
+    printf("\t\t-g [file path], to generate a new key, and store it in the specified file.\n");
+    printf("\t\t-e [sourcefile] -o [out file] -k [key file] to encrypt a file using a key file\n");
+    printf("\t\t-d [sourcefile] -o [out file] -k [key file] to decrypt a file using a key file\n");
+    printf("\t\t-h for help\n");
+}
+
 int main(int arg_count, char* arguments[]) {
-    int encrypt_file_flag = 0;
-    char* encrypt_file_URI = NULL;
     
-    int decrypt_file_flag = 0;
-    char* decrypt_file_URI = NULL;
-
-    int help_flag = 0;
-
+    //if the user doesn't specify an argument, present the help screen.
+    if (arg_count == 1) {
+        help();
+        return 0;
+    }
     
+    //Initiate libsodium.
+    if (sodium_init() < 0) {
+        fprintf(stderr, "Error. Unable to initiate libsodium. Exiting.\n");
+        return 1;
+    }
+    
+    //encrypt arguments
+    char encrypt_flag = 0;
+    char* encrypt_file_path = NULL;
+
+    //decrypt arguments
+    char decrypt_flag = 0;
+    char* decrypt_file_path = NULL;
+
+    //output file arguments
+    char output_flag = 0;
+    char* output_file_path = NULL;
+
+    //key file arguments
+    char key_file_flag = 0;
+    char* key_file_path = NULL;
+    
+    //current argument to be parsed
+    int current_arg;
+
+    while ((current_arg = getopt(arg_count, arguments, "g:e:o:k:d:h")) != -1) {
+        switch (current_arg) {
+            case 'h': {
+                help();
+                return 0;
+            }
+            case 'g': {
+                generate_key(optarg);
+                break;
+            }
+            case 'e': {
+                encrypt_flag = 1;
+                encrypt_file_path = optarg;
+                break;
+            }
+            case 'd': {
+                decrypt_flag = 1;
+                decrypt_file_path = optarg;
+                break;
+            }
+            case 'o': {
+                output_flag = 1;
+                output_file_path = optarg;
+                break;
+            }
+            case 'k': {
+                key_file_flag = 1;
+                key_file_path = optarg;
+                break;
+            }
+            case '?': {
+                help();
+                return 0;
+            }
+        }
+    }
+
+    //operations to do if encrypting, or decrypting a file.
+    if (decrypt_flag || encrypt_flag) {
+        
+        int out_and_key_valid = ((output_flag) && (output_file_path != NULL) &&
+                                (key_file_flag) && (key_file_path != NULL));
+    
+        //encrypt a file, if all the valid flags are set
+        if (encrypt_flag) {
+            if ((encrypt_file_path != NULL) &&
+                out_and_key_valid) {
+            
+                if (encrypt_file(output_file_path, encrypt_file_path, key_file_path) != 0) {
+                    fprintf(stderr, "An error occurred while encrypting the file.\n");
+                    return 1;
+                }
+            } else {
+                help();
+            }
+        
+        //decrypt a file, if all the valid flags are set
+        } else if (decrypt_flag) {
+            if ((decrypt_flag) && (decrypt_file_path != NULL) &&
+                out_and_key_valid) {
+            
+                if (decrypt_file(output_file_path, decrypt_file_path, key_file_path) != 0) {
+                    fprintf(stderr, "An error occurred while decrypting the file.\n");
+                    return 1;
+                }
+            } else {
+                help();
+            }
+        }
+    }
+
     return 0;
 }
