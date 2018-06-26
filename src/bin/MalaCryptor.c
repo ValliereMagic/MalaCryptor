@@ -5,7 +5,7 @@
 #define CHUNK_SIZE 4096
 
 
-int generate_key(char* dest_file) {
+void generate_key(char* dest_file) {
     unsigned char encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 
     FILE* key_file_new = fopen(dest_file, "wb");
