@@ -65,11 +65,55 @@ int validate_files(FILE* file_in, FILE* key_file) {
 }
 
 int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
-    //include common variable definitions between encrypt and decrypt
-    #include "define_vars.h"
+    //buffer to read in a chunk of the file to encrypt
+    unsigned char in_buffer[CHUNK_SIZE];
 
-    //include common file operations and reads between encrypt and decrypt
-    #include "common_file_work.h"
+    //buffer to write a chunk to the destination encrypted file
+    unsigned char out_buffer[CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES];
+
+    //where the key is going to be stored when it is read in
+
+    unsigned char encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+
+    //small header at the start of the file required to be able to decrypt said file
+    unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+
+    //encryption state
+    crypto_secretstream_xchacha20poly1305_state state;
+
+    //pointers for the input and output file
+    FILE *file_in, *file_out, *key_file;
+
+    //length of output buffer for writing to file
+    unsigned long long out_buffer_length;
+
+    //length that is read from the file to encrypt each time in the loop
+    size_t read_length;
+
+    //end of file
+    int eof;
+
+    //tag to specify what to do with the specific message being processed
+    unsigned char tag;
+
+    //read in the URIs to the source, target, and key file
+    file_in = fopen(source_file, "rb");
+    file_out = fopen(target_file, "wb");
+    key_file = fopen(key_file_path, "rb");
+    
+    //make sure that the files being read from are not NULL
+    if (!validate_files(file_in, key_file)) {
+        return -1;
+    }
+
+    //make sure that the length of the key in key file is correct
+    if (!validate_key_file_size(key_file_path)) {
+        return -1;
+    }
+
+    //read the key in the key file into the key byte array, and close the file
+    fread(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES, key_file);
+    fclose(key_file);
 
     //initiate the state and store the stream header into header
     crypto_secretstream_xchacha20poly1305_init_push(&state, header, encryption_key);
@@ -80,7 +124,7 @@ int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
 
     do {
         //read in a piece of the file into the buffer, and record it's length
-        in_buffer_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
+        read_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
         
         //check if we have reached the end of the file yet
         eof = feof(file_in);
@@ -90,7 +134,7 @@ int encrypt_file(char* target_file, char* source_file, char* key_file_path) {
 
         //encrypt the current in_buffer piece of the file, and store it in the out_buffer to be written to the
         //out file
-        crypto_secretstream_xchacha20poly1305_push(&state, out_buffer, &out_buffer_length, in_buffer, in_buffer_length,
+        crypto_secretstream_xchacha20poly1305_push(&state, out_buffer, &out_buffer_length, in_buffer, read_length,
                                                    NULL, 0, tag);
 
         //write the encrypted buffer to the resultant out file
@@ -113,13 +157,59 @@ int decrypt_return_status_cleanup(FILE* file_in, FILE* file_out, int* ret_value)
 }
 
 int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
-    //include common variable definitions between encrypt and decrypt
-    #include "define_vars.h"
+    //buffer to read in a chunk of the file to decrypt
+    unsigned char in_buffer[CHUNK_SIZE];
+
+    //buffer to write a chunk to the destination decrypted file
+    unsigned char out_buffer[CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES];
+
+    //where the key is going to be stored when it is read in
+
+    unsigned char encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
+
+    //small header at the start of the file required to be able to decrypt said file
+    unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+
+    //encryption state
+    crypto_secretstream_xchacha20poly1305_state state;
+
+    //pointers for the input and output file
+    FILE *file_in, *file_out, *key_file;
+
+    //length of output buffer for writing to file
+    unsigned long long out_buffer_length;
+
+    //length that is read from the encrypted file each time in the loop
+    size_t read_length;
+
+
+    //end of file
+    int eof;
+
+    //tag to specify what to do with the specific message being processed
+    unsigned char tag;
 
     int ret_value = -1;
     
-    //include common file operations and reads between encrypt and decrypt
-    #include "common_file_work.h"
+    //read in the URIs to the source, target, and key file
+    file_in = fopen(source_file, "rb");
+    file_out = fopen(target_file, "wb");
+    key_file = fopen(key_file_path, "rb");
+    
+    //make sure that the files being read from are not NULL
+    if (!validate_files(file_in, key_file)) {
+        return -1;
+    }
+
+    //make sure that the length of the key in key file is correct
+    if (!validate_key_file_size(key_file_path)) {
+        return -1;
+    }
+
+    //read the key in the key file into the key byte array, and close the file
+    fread(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES, key_file);
+    fclose(key_file);
+
 
     //read the header information from the encrypted file into the header
     fread(header, 1, crypto_secretstream_xchacha20poly1305_HEADERBYTES, file_in);
@@ -130,8 +220,8 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
     }
 
     do {
-        //read piece of file to encrypt from the source file
-        in_buffer_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
+        //read piece of file to decrypt from the source file
+        read_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
 
         //determine whether we are at the end of the file
         eof = feof(file_in);
@@ -141,7 +231,7 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
         if (crypto_secretstream_xchacha20poly1305_pull(&state, out_buffer,
                                                        &out_buffer_length,
                                                        &tag, in_buffer,
-                                                       in_buffer_length,
+                                                       read_length,
                                                        NULL, 0) != 0) {
             
             fprintf(stderr, "Error. Attempted to decrypt corrupted file chunk. Exiting.\n");
