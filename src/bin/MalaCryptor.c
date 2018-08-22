@@ -14,7 +14,10 @@ int generate_key(char* dest_file) {
     crypto_secretstream_xchacha20poly1305_keygen(encryption_key);
 
     //store new encryption key into file
-    fwrite(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES, key_file_new);
+    size_t bytes_written = fwrite(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES, key_file_new);
+
+    //print out length (in bytes) of the key written to file.
+    printf("%d bytes written to key file.\n", (int)bytes_written);
 
     //close key file
     fclose(key_file_new);
@@ -158,10 +161,10 @@ int decrypt_return_status_cleanup(FILE* file_in, FILE* file_out, int* ret_value)
 
 int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
     //buffer to read in a chunk of the file to decrypt
-    unsigned char in_buffer[CHUNK_SIZE];
+    unsigned char in_buffer[CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES];
 
     //buffer to write a chunk to the destination decrypted file
-    unsigned char out_buffer[CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES];
+    unsigned char out_buffer[CHUNK_SIZE];
 
     //where the key is going to be stored when it is read in
 
@@ -221,7 +224,9 @@ int decrypt_file(char* target_file, char* source_file, char* key_file_path) {
 
     do {
         //read piece of file to decrypt from the source file
-        read_length = fread(in_buffer, 1, CHUNK_SIZE, file_in);
+        read_length = fread(in_buffer, 1,
+                            CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES,
+                            file_in);
 
         //determine whether we are at the end of the file
         eof = feof(file_in);
