@@ -1,3 +1,4 @@
+[![CodeFactor](https://www.codefactor.io/repository/github/vallieremagic/malacryptor/badge)](https://www.codefactor.io/repository/github/vallieremagic/malacryptor)
 # MalaCryptor
 ## A simple tool using libsodium to encrypt files
 
