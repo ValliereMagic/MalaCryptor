@@ -1,0 +1,1 @@
+export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
