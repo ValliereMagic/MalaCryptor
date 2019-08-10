@@ -83,7 +83,7 @@ int main(int arg_count, char* arguments[])
         //encrypt a file, if all the valid flags are set
         if (encrypt_flag) {
             if ((encrypt_file_path != NULL) && out_and_key_valid) {
-                if (file_sym_enc_encrypt(output_file_path, encrypt_file_path, key_file_path) != 0) {
+                if (file_sym_enc_encrypt_key_file(output_file_path, encrypt_file_path, key_file_path) != 0) {
                     fputs("An error occurred while encrypting the file.\n", stderr);
                     return 1;
                 }
@@ -93,7 +93,7 @@ int main(int arg_count, char* arguments[])
         //decrypt a file, if all the valid flags are set
         } else if (decrypt_flag) {
             if ((decrypt_flag) && (decrypt_file_path != NULL) && out_and_key_valid) {
-                if (file_sym_enc_decrypt(output_file_path, decrypt_file_path, key_file_path) != 0) {
+                if (file_sym_enc_decrypt_key_file(output_file_path, decrypt_file_path, key_file_path) != 0) {
                     fputs("An error occurred while decrypting the file.\n", stderr);
                     return 1;
                 }
