@@ -3,7 +3,7 @@
 
 // Generate a random key using the function provided by the libsodium library
 // and store it in the file at the path passed.
-void key_file_generate(const char *dest_file)
+void key_file_generate_sym(const char *dest_file)
 {
 	unsigned char
 		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
@@ -47,11 +47,10 @@ static long key_file_get_size(const char *file_name)
 
 // verify that the file passed is the correct length to be a key for
 // xchacha20poly1305 (256bit == 32bytes)
-int key_file_verify_length(const char *key_file_path)
+int key_file_verify_length(const char *key_file_path, size_t correct_len)
 {
 	//make sure that the length of the key in key file is correct
-	if (key_file_get_size(key_file_path) !=
-	    crypto_secretstream_xchacha20poly1305_KEYBYTES) {
+	if (key_file_get_size(key_file_path) != correct_len) {
 		fputs("Error. the length of the key in the key file is incorrect. Exiting.\n",
 		      stderr);
 		return 0;
