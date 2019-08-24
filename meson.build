@@ -2,13 +2,13 @@ project('mala_cryptor', 'c')
 # Required system libraries
 sodium_dep = dependency('libsodium')
 openssl_dep = dependency('openssl')
-# Link frodoKEM based on the operating system we are building on
-frodo_includes = '../lib/'
-frodo_link = '-lfrodo'
+# Link OQS based on the operating system we are building on
+oqs_includes = '../lib/include'
+oqs_link = '-loqs'
 if (build_machine.system() == 'cygwin')
-    frodo_dep = declare_dependency(include_directories: [frodo_includes], link_args: ['-L../lib/win', frodo_link])
+    frodo_dep = declare_dependency(include_directories: [oqs_includes], link_args: ['-L../lib/win', oqs_link])
 elif (build_machine.system() == 'linux')
-    frodo_dep = declare_dependency(include_directories: [frodo_includes], link_args: ['-L../lib/gnu_linux', frodo_link])
+    frodo_dep = declare_dependency(include_directories: [oqs_includes], link_args: ['-L../lib/gnu_linux', oqs_link])
 else
     error('Error! Not on a supported build platform. Halting.')
 endif

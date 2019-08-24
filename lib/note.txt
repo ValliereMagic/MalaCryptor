@@ -1,1 +1,1 @@
-Placeholder. header for frodoKEM (for build operating system) must be in this folder
+Placeholder. Header folder for OQS (for build operating system) must be in this folder

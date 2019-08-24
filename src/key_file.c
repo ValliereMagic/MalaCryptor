@@ -5,7 +5,7 @@
 #else
 #include <arpa/inet.h>
 #endif
-#include "api_frodo1344.h"
+#include "oqs/oqs.h"
 
 // Generate a random key using the function provided by the
 // libsodium library and store it in the file at the path passed.
@@ -52,31 +52,31 @@ static unsigned char key_file_generate_quantum_keypair(FILE *pkey_file,
 						       FILE *skey_file)
 {
 	// Generate Quantum Resistant KEM keypair
-	unsigned char skey[CRYPTO_SECRETKEYBYTES];
-	unsigned char pkey[CRYPTO_PUBLICKEYBYTES];
+	unsigned char skey[OQS_KEM_frodokem_1344_aes_length_secret_key];
+	unsigned char pkey[OQS_KEM_frodokem_1344_aes_length_public_key];
 	// Lock memory where keys will be held
-	if ((sodium_mlock(skey, CRYPTO_SECRETKEYBYTES) != 0) ||
-	    (sodium_mlock(pkey, CRYPTO_PUBLICKEYBYTES) != 0)) {
+	if ((sodium_mlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key) != 0) ||
+	    (sodium_mlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key) != 0)) {
 		fputs("Error! unable to lock key memory! (key_pair_quantum)\n",
 		      stderr);
 	}
 	puts("before here");
-	crypto_kem_keypair_Frodo1344(pkey, skey);
+	OQS_KEM_frodokem_1344_aes_keypair(pkey, skey);
 	puts("here");
 	// Format the key lengths into network byte order
 	unsigned char skey_len[2];
 	unsigned char pkey_len[2];
-	*((unsigned short *)skey_len) = htons(CRYPTO_SECRETKEYBYTES);
-	*((unsigned short *)pkey_len) = htons(CRYPTO_PUBLICKEYBYTES);
+	*((unsigned short *)skey_len) = htons(OQS_KEM_frodokem_1344_aes_length_secret_key);
+	*((unsigned short *)pkey_len) = htons(OQS_KEM_frodokem_1344_aes_length_public_key);
 	// Append the lengths to the key files.
 	fwrite(skey_len, 2, 1, skey_file);
 	fwrite(pkey_len, 2, 1, pkey_file);
 	// Write the keys to their respective files
-	fwrite(skey, 1, CRYPTO_SECRETKEYBYTES, skey_file);
-	fwrite(pkey, 1, CRYPTO_PUBLICKEYBYTES, pkey_file);
+	fwrite(skey, 1, OQS_KEM_frodokem_1344_aes_length_secret_key, skey_file);
+	fwrite(pkey, 1, OQS_KEM_frodokem_1344_aes_length_public_key, pkey_file);
 	// Unlock the memory held by the keys, and zero out
-	sodium_munlock(skey, CRYPTO_SECRETKEYBYTES);
-	sodium_munlock(pkey, CRYPTO_PUBLICKEYBYTES);
+	sodium_munlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key);
+	sodium_munlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key);
 	return 1;
 }
 
