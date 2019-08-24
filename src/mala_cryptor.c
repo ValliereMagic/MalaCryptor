@@ -49,7 +49,7 @@ int main(int arg_count, char *arguments[])
 			return 0;
 		}
 		case 'g': {
-			key_file_generate(optarg);
+			key_file_generate_sym(optarg);
 			break;
 		}
 		case 'e': {

@@ -3,5 +3,7 @@
 ## A simple tool using libsodium to encrypt files
 
 - Depends on [libsodium](https://github.com/jedisct1/libsodium)
+- Depends on [openssl](https://www.openssl.org/)
+- Depends on [FrodoKEM](https://frodokem.org/)
 
 Most of the source was modified from the [libsodium documentation](https://download.libsodium.org/doc/secret-key_cryptography/secretstream.html)

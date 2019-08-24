@@ -15,7 +15,9 @@ static inline int get_encryption_key(
 {
 	FILE *key_file = fopen(key_file_path, "rb");
 	//make sure that the length of the key in key file is correct
-	if (!key_file_verify_length(key_file_path)) {
+	if (!key_file_verify_length(
+		    key_file_path,
+		    crypto_secretstream_xchacha20poly1305_KEYBYTES)) {
 		fclose(key_file);
 		return -1;
 	}

@@ -1,0 +1,1 @@
+Placeholder for libfrodo.a This static library is required for GNU+Linux systems.
