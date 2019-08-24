@@ -55,19 +55,21 @@ static unsigned char key_file_generate_quantum_keypair(FILE *pkey_file,
 	unsigned char skey[OQS_KEM_frodokem_1344_aes_length_secret_key];
 	unsigned char pkey[OQS_KEM_frodokem_1344_aes_length_public_key];
 	// Lock memory where keys will be held
-	if ((sodium_mlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key) != 0) ||
-	    (sodium_mlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key) != 0)) {
+	if ((sodium_mlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key) !=
+	     0) ||
+	    (sodium_mlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key) !=
+	     0)) {
 		fputs("Error! unable to lock key memory! (key_pair_quantum)\n",
 		      stderr);
 	}
-	puts("before here");
 	OQS_KEM_frodokem_1344_aes_keypair(pkey, skey);
-	puts("here");
 	// Format the key lengths into network byte order
 	unsigned char skey_len[2];
 	unsigned char pkey_len[2];
-	*((unsigned short *)skey_len) = htons(OQS_KEM_frodokem_1344_aes_length_secret_key);
-	*((unsigned short *)pkey_len) = htons(OQS_KEM_frodokem_1344_aes_length_public_key);
+	*((unsigned short *)skey_len) =
+		htons(OQS_KEM_frodokem_1344_aes_length_secret_key);
+	*((unsigned short *)pkey_len) =
+		htons(OQS_KEM_frodokem_1344_aes_length_public_key);
 	// Append the lengths to the key files.
 	fwrite(skey_len, 2, 1, skey_file);
 	fwrite(pkey_len, 2, 1, pkey_file);
