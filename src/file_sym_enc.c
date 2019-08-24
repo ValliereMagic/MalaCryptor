@@ -8,7 +8,7 @@
 // retrieve the encryption key stored at the path passed
 // make sure that the key is the correct length for
 // xchacha20
-static inline int get_encryption_key(
+static int get_encryption_key(
 	const char *key_file_path,
 	unsigned char
 		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES])
@@ -30,7 +30,7 @@ static inline int get_encryption_key(
 
 // retrieve the key using the path specified, and execute the callback operation
 // with the key pulled from the file (encrypt or decrypt)
-static inline int call_file_crypto(
+static int call_file_crypto(
 	const char *target_file, const char *source_file,
 	const char *key_file_path,
 	int (*operation)(
@@ -41,16 +41,20 @@ static inline int call_file_crypto(
 	unsigned char
 		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 	// lock the memory that the encryption key is stored in, to avoid it being swapped to disk
-	sodium_mlock(encryption_key,
-		     crypto_secretstream_xchacha20poly1305_KEYBYTES);
+	if (sodium_mlock(encryption_key,
+			 crypto_secretstream_xchacha20poly1305_KEYBYTES) != 0) {
+		fputs("Error! unable to lock key memory! (file_sym_enc)\n",
+		      stderr);
+		return -1;
+	}
 	// retrieve the encryption key from the file passed, and verify that the key file
 	// contains a key of the right length.
 	if (!get_encryption_key(key_file_path, encryption_key))
 		return -1;
 	// operate on the file with the key extracted.
 	int success = operation(target_file, source_file, encryption_key);
-	// overwrite the encryption_key
-	sodium_memzero(encryption_key,
+	// overwrite and unlock the encryption_key
+	sodium_munlock(encryption_key,
 		       crypto_secretstream_xchacha20poly1305_KEYBYTES);
 	return success;
 }

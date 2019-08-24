@@ -16,6 +16,9 @@ void help(void)
 
 int main(int arg_count, char *arguments[])
 {
+	// Test hybrid keyfile creation
+	key_file_generate_keypair("pkey_hybrid", "skey_hybrid",
+				  key_file_hybrid);
 	//if the user doesn't specify an argument, present the help screen.
 	if (arg_count == 1) {
 		help();
