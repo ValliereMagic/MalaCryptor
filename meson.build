@@ -17,6 +17,11 @@ compiler = meson.get_compiler('c')
 if not compiler.has_header('getopt.h')
     error('Error! Getopt not found! Halting.')
 endif
+
+# Make sure that the compiler has either of these headers.
+if not compiler.has_header('winsock.h') and not compiler.has_header('arpa/inet.h')
+    error('Error! Header for conversion to network byte order and back required! Halting.')
+endif
 # Build malacryptor executable
 mala_cryptor_src = ['src/mala_cryptor.c', 'src/key_file.c', 'src/file_sym_enc.c']
 c_flags = ['-O2', '-march=native']
