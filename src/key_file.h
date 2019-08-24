@@ -3,7 +3,7 @@
 
 // Generate a random key using the function provided by the libsodium library
 // and store it in the file at the path passed.
-void key_file_generate_sym(const char *dest_file);
+unsigned char key_file_generate_sym(const char *dest_file);
 // verify that the file passed is the correct length to be a key for
 // xchacha20poly1305 (256bit == 32bytes)
 int key_file_verify_length(const char *key_file_path, size_t correct_len);
