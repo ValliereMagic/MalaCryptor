@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sodium.h>
 #include <string.h>
+#include <ctype.h>
 #include "key_file.h"
 #include "file_sym_enc.h"
 
@@ -46,13 +47,45 @@ struct operations {
 	const char *sym_op_out_file;
 };
 
-static inline unsigned char is_opt(const char *key, const char *value,
-				   const unsigned char has_next)
+static unsigned char is_opt(const char *key, const char *value,
+			    const unsigned char has_next)
 {
-	if ((strcmp(key, value) == 0) && has_next) {
+	if ((strcmp(key, value) == 0)) {
+		if (!has_next) {
+			fprintf(stderr, "Error. Option '%s' requires argument(s). Exiting.\n", key);
+			return 0;
+		}
 		return 1;
 	}
 	return 0;
+}
+
+static unsigned char check_optarg_val(char *arg)
+{
+	// This can't happen, otherwise no arg
+	return !(arg[0] == '-');
+}
+
+static unsigned char parse_ops(struct operations *ops, int arg_count, char *arguments[])
+{
+	for (int i = 0; i < arg_count; i++) {
+		// Make sure there is room for an option after this string
+		const unsigned char args_left = (arg_count - 1) - i;
+		// Current possible argument to look at
+		const char *current_argument = arguments[i];
+		if (is_opt(current_argument, "-gen_sym_key_file",
+			   (args_left >= 1))) {
+			ops->gen_sym_key_file = 1;
+			if (check_optarg_val(arguments[i + 1])) {
+				ops->sym_op_key_file = arguments[i + 1];
+			} else {
+				fputs("Error. Invalid or no argument for '-gen_sym_key_file'. Exiting.\n",
+				      stderr);
+				return 0;
+			}
+		}
+	}
+	return 1;
 }
 
 int main(int arg_count, char *arguments[])
@@ -70,18 +103,10 @@ int main(int arg_count, char *arguments[])
 	}
 	// Begin operations
 	struct operations ops = { 0, NULL, 0, 0, NULL, NULL };
-	for (int i = 0; i < arg_count; i++) {
-		// Make sure there is room for an option after this string
-		const unsigned char args_left = (arg_count - 1) - i;
-		// Current possible argument to look at
-		const char *current_argument = arguments[i];
-		if (is_opt(current_argument, "-gen_sym_key_file",
-			   (args_left >= 1))) {
-			ops.gen_sym_key_file = 1;
-			// TODO Check whether the next argument makes sense first.
-			ops.sym_op_key_file = arguments[i + 1];
-		}
+	unsigned char parse_success = parse_ops(&ops, arg_count, arguments);
+	if (!parse_success) {
+		return EXIT_FAILURE;
 	}
 	puts(ops.sym_op_key_file);
-	return 0;
+	return EXIT_SUCCESS;
 }
