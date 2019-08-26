@@ -5,29 +5,6 @@
 
 #define CHUNK_SIZE 4096
 
-// retrieve the encryption key stored at the path passed
-// make sure that the key is the correct length for
-// xchacha20
-static int get_encryption_key(
-	const char *key_file_path,
-	unsigned char
-		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES])
-{
-	FILE *key_file = fopen(key_file_path, "rb");
-	//make sure that the length of the key in key file is correct
-	if (!key_file_verify_length(
-		    key_file_path,
-		    crypto_secretstream_xchacha20poly1305_KEYBYTES)) {
-		fclose(key_file);
-		return -1;
-	}
-	//read the key in the key file into the key byte array, and close the file
-	fread(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES,
-	      key_file);
-	fclose(key_file);
-	return 1;
-}
-
 // retrieve the key using the path specified, and execute the callback operation
 // with the key pulled from the file (encrypt or decrypt)
 static int call_file_crypto(
@@ -49,7 +26,7 @@ static int call_file_crypto(
 	}
 	// retrieve the encryption key from the file passed, and verify that the key file
 	// contains a key of the right length.
-	if (!get_encryption_key(key_file_path, encryption_key))
+	if (!key_file_get_sym_key(key_file_path, encryption_key))
 		return -1;
 	// operate on the file with the key extracted.
 	int success = operation(target_file, source_file, encryption_key);

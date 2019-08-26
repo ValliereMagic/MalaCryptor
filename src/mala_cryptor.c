@@ -1,22 +1,62 @@
 #include <stdio.h>
 #include <sodium.h>
-#include <getopt.h>
+#include <string.h>
 #include "key_file.h"
 #include "file_sym_enc.h"
 
 void help(void)
 {
 	puts("MalaCryptor Help:");
-	puts("\tOptions:");
-	puts("\t\t-g [file path], to generate a new key, and store it in the specified file.");
-	puts("\t\t-e [sourcefile] -o [out file] -k [key file] to encrypt a file using a key file");
-	puts("\t\t-d [sourcefile] -o [out file] -k [key file] to decrypt a file using a key file");
-	puts("\t\t-h for help");
+
+	puts("\t-h for help");
+
+	puts("\tSymmetric File Encryption Options:");
+
+	puts("\t\t-gen_sym_key_file [file path], to generate a new key, and\n"
+	     "\t\t\tstore it in the specified file.");
+
+	puts("\t\t-sym_enc_file [sourcefile] [out file] [key file] to encrypt\n"
+	     "\t\t\ta file using a key file");
+
+	puts("\t\t-sym_dec_file [sourcefile] [out file] [key file] to decrypt\n"
+	     "\t\t\ta file using a key file");
+
+	puts("\tPublic-Private File Encryption Options:");
+
+	puts("\t\t-gen_classical_keypair [public key path] [private key path],\n"
+	     "\t\t\t to generate a new classical public-private keypair");
+
+	puts("\t\t-gen_quantum_keypair [public key path] [private key path],\n"
+	     "\t\t\tto generate a new quantum resistant keypair");
+
+	puts("\t\t-gen_hybrid_keypair [public key path] [private key path],\n"
+	     "\t\t\tto generate a new quantum resistant, and classical\n"
+	     "\t\t\tkeypair in one file");
+}
+
+struct operations {
+	// Generate symmetric keyfile
+	unsigned char gen_sym_key_file;
+	const char *sym_op_key_file;
+	// Encrypt file using symmetric keyfile
+	// or Decrypt (uses sym_op_key_file)
+	unsigned char sym_enc_file;
+	unsigned char sym_dec_file;
+	const char *sym_op_source_file;
+	const char *sym_op_out_file;
+};
+
+static inline unsigned char is_opt(const char *key, const char *value,
+				   const unsigned char has_next)
+{
+	if ((strcmp(key, value) == 0) && has_next) {
+		return 1;
+	}
+	return 0;
 }
 
 int main(int arg_count, char *arguments[])
 {
-	key_file_generate_keypair("pkey_file", "skey_file", key_file_hybrid);
 	//if the user doesn't specify an argument, present the help screen.
 	if (arg_count == 1) {
 		help();
@@ -28,90 +68,20 @@ int main(int arg_count, char *arguments[])
 		      stderr);
 		return 1;
 	}
-	//encrypt arguments
-	char encrypt_flag = 0;
-	char *encrypt_file_path = NULL;
-	//decrypt arguments
-	char decrypt_flag = 0;
-	char *decrypt_file_path = NULL;
-	//output file arguments
-	char output_flag = 0;
-	char *output_file_path = NULL;
-	//key file arguments
-	char key_file_flag = 0;
-	char *key_file_path = NULL;
-	//current argument to be parsed
-	int current_arg;
-	while ((current_arg = getopt(arg_count, arguments, "g:e:o:k:d:h")) !=
-	       -1) {
-		switch (current_arg) {
-		case 'h': {
-			help();
-			return 0;
-		}
-		case 'g': {
-			key_file_generate_sym(optarg);
-			break;
-		}
-		case 'e': {
-			encrypt_flag = 1;
-			encrypt_file_path = optarg;
-			break;
-		}
-		case 'd': {
-			decrypt_flag = 1;
-			decrypt_file_path = optarg;
-			break;
-		}
-		case 'o': {
-			output_flag = 1;
-			output_file_path = optarg;
-			break;
-		}
-		case 'k': {
-			key_file_flag = 1;
-			key_file_path = optarg;
-			break;
-		}
-		case '?': {
-			help();
-			return 0;
-		}
+	// Begin operations
+	struct operations ops = { 0, NULL, 0, 0, NULL, NULL };
+	for (int i = 0; i < arg_count; i++) {
+		// Make sure there is room for an option after this string
+		const unsigned char args_left = (arg_count - 1) - i;
+		// Current possible argument to look at
+		const char *current_argument = arguments[i];
+		if (is_opt(current_argument, "-gen_sym_key_file",
+			   (args_left >= 1))) {
+			ops.gen_sym_key_file = 1;
+			// TODO Check whether the next argument makes sense first.
+			ops.sym_op_key_file = arguments[i + 1];
 		}
 	}
-	//operations to do if encrypting, or decrypting a file.
-	if (decrypt_flag || encrypt_flag) {
-		int out_and_key_valid =
-			((output_flag) && (output_file_path != NULL) &&
-			 (key_file_flag) && (key_file_path != NULL));
-		//encrypt a file, if all the valid flags are set
-		if (encrypt_flag) {
-			if ((encrypt_file_path != NULL) && out_and_key_valid) {
-				if (file_sym_enc_encrypt_key_file(
-					    output_file_path, encrypt_file_path,
-					    key_file_path) != 0) {
-					fputs("An error occurred while encrypting the file.\n",
-					      stderr);
-					return 1;
-				}
-			} else {
-				help();
-			}
-			//decrypt a file, if all the valid flags are set
-		} else if (decrypt_flag) {
-			if ((decrypt_flag) && (decrypt_file_path != NULL) &&
-			    out_and_key_valid) {
-				if (file_sym_enc_decrypt_key_file(
-					    output_file_path, decrypt_file_path,
-					    key_file_path) != 0) {
-					fputs("An error occurred while decrypting the file.\n",
-					      stderr);
-					return 1;
-				}
-			} else {
-				help();
-			}
-		}
-	}
+	puts(ops.sym_op_key_file);
 	return 0;
 }

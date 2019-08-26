@@ -46,6 +46,29 @@ unsigned char key_file_generate_sym(const char *dest_file)
 	return 1;
 }
 
+// retrieve the encryption key stored at the path passed
+// make sure that the key is the correct length for
+// xchacha20
+int key_file_get_sym_key(
+	const char *key_file_path,
+	unsigned char
+		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES])
+{
+	FILE *key_file = fopen(key_file_path, "rb");
+	//make sure that the length of the key in key file is correct
+	if (!key_file_verify_length(
+		    key_file_path,
+		    crypto_secretstream_xchacha20poly1305_KEYBYTES)) {
+		fclose(key_file);
+		return -1;
+	}
+	//read the key in the key file into the key byte array, and close the file
+	fread(encryption_key, 1, crypto_secretstream_xchacha20poly1305_KEYBYTES,
+	      key_file);
+	fclose(key_file);
+	return 1;
+}
+
 // Generate a quantum keypair using FrodoKEM and store in the
 // destination file.
 static unsigned char key_file_generate_quantum_keypair(FILE *pkey_file,
