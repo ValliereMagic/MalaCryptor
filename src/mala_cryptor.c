@@ -148,14 +148,6 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 
 static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 {
-	// valid arguments for program operations
-	static const char *valid_args[] = { "-h",
-					    "-gen_sym_key_file",
-					    "-sym_enc_file",
-					    "-sym_dec_file",
-					    "-gen_classical_keypair",
-					    "-gen_quantum_keypair",
-					    "-gen_hybrid_keypair" };
 	// Set to true if an argument exists and was executed successfully
 	// (parse || arg_executed) so its true even if only one arg is ever
 	// executed.
@@ -164,13 +156,13 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// Check whether the current argument is a valid program operation
 		// generate symmetric keyfile.
 		// Help argument
-		arg_executed = parse_args_vals_call(0, valid_args[0], arguments,
+		arg_executed = parse_args_vals_call(0, "-h", arguments,
 						    i, arg_count,
 						    (void (*)())help, 0, 0) ||
 			       arg_executed;
 		// generate symmetric key file
 		arg_executed =
-			parse_args_vals_call(1, valid_args[1], arguments, i,
+			parse_args_vals_call(1, "-gen_sym_key_file", arguments, i,
 					     arg_count,
 					     (void (*)())key_file_generate_sym,
 					     0, 0) ||
@@ -178,35 +170,35 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// encrypt file with symmetric key file
 		arg_executed =
 			parse_args_vals_call(
-				3, valid_args[2], arguments, i, arg_count,
+				3, "-sym_enc_file", arguments, i, arg_count,
 				(void (*)())file_sym_enc_encrypt_key_file, 0,
 				0) ||
 			arg_executed;
 		// decrypt file with symmetric key file
 		arg_executed =
 			parse_args_vals_call(
-				3, valid_args[3], arguments, i, arg_count,
+				3, "-sym_dec_file", arguments, i, arg_count,
 				(void (*)())file_sym_enc_decrypt_key_file, 0,
 				0) ||
 			arg_executed;
 		// generate classical keypair
 		arg_executed =
 			parse_args_vals_call(
-				2, valid_args[4], arguments, i, arg_count,
+				2, "-gen_classical_keypair", arguments, i, arg_count,
 				(void (*)())key_file_generate_keypair, 1,
 				key_file_classical) ||
 			arg_executed;
 		// generate quantum keypair
 		arg_executed =
 			parse_args_vals_call(
-				2, valid_args[5], arguments, i, arg_count,
+				2, "-gen_quantum_keypair", arguments, i, arg_count,
 				(void (*)())key_file_generate_keypair, 1,
 				key_file_quantum) ||
 			arg_executed;
 		// generate hybrid keypair
 		arg_executed =
 			parse_args_vals_call(
-				2, valid_args[6], arguments, i, arg_count,
+				2, "-gen_hybrid_keypair", arguments, i, arg_count,
 				(void (*)())key_file_generate_keypair, 1,
 				key_file_hybrid) ||
 			arg_executed;
