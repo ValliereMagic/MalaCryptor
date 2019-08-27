@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <sodium.h>
 #include <string.h>
-#include <stdarg.h>
-#include <ctype.h>
 #include "key_file.h"
 #include "file_sym_enc.h"
 
@@ -42,17 +40,19 @@ void help(void)
 static unsigned char is_opt(const char *key, const char *value,
 			    const unsigned char has_next)
 {
-	if ((strcmp(key, value) == 0)) {
-		if (!has_next) {
-			fprintf(stderr,
-				"Error. Option '%s' requires one or more argument(s). "
-				"Exiting.\n",
-				key);
-			return 0;
-		}
-		return 1;
+	// make sure that the key and the value(arg from arguments
+	// string) match.
+	if (!(strcmp(key, value) == 0))
+		return 0;
+	// Make sure there are enough values to satisfy the argument
+	if (!has_next) {
+		fprintf(stderr,
+			"Error. Option '%s' requires one or more argument(s). "
+			"Exiting.\n",
+			key);
+		return 0;
 	}
-	return 0;
+	return 1;
 }
 
 // Make sure the value isn't another argument
@@ -102,48 +102,47 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 	// Check whether the current opt matched the arg_key and
 	// there are enough arguments afterwords to satisfy the values
 	// it requires
-	if (is_opt(current_argument, arg_key, (args_left >= num_vals))) {
-		// Make sure the proposed values for the argument make
-		// sense.
-		for (size_t i = 0; i < num_vals; i++) {
-			// set the value at i as the supposed value
-			// of the argument (-foo bar bar bar)
-			values[i] = arguments[index + (i + 1)];
-			// Make sure the value isn't another argument
-			// (starts with [-]) otherwise error
-			if (!check_optarg_val(values[i])) {
-				// failure
-				fprintf(stderr, error_fmt, arg_key);
-				return 0;
-			}
+	if (!is_opt(current_argument, arg_key, (args_left >= num_vals)))
+		// Did not operate on an argument, but not necessarily a failure.
+		return 0;
+	// Make sure the proposed values for the argument make
+	// sense.
+	for (size_t i = 0; i < num_vals; i++) {
+		// set the value at i as the supposed value
+		// of the argument (-foo bar bar bar)
+		values[i] = arguments[index + (i + 1)];
+		// Make sure the value isn't another argument
+		// (starts with [-]) otherwise error
+		if (!check_optarg_val(values[i])) {
+			// failure
+			fprintf(stderr, error_fmt, arg_key);
+			return 0;
 		}
-		// call the callback as such. Each value for MAX_VALUES must have
-		// a case (1 to MAX_VALUES)
-		switch (num_vals) {
-		case 0:
-			callback();
-			break;
-		case 1:
-			callback(values[0]);
-			break;
-		case 2: {
-			// If we are dealing with keypairs, need to specify keypair
-			// type. Only do this if keypair is true (generating a PKI keypair).
-			if (keypair)
-				callback(values[0], values[1], keypair_type);
-			else
-				callback(values[0], values[1]);
-			break;
-		}
-		case 3:
-			callback(values[0], values[1], values[2]);
-			break;
-		}
-		// operated on argument successfully.
-		return 1;
 	}
-	// Did not operate on an argument, but not a failure.
-	return 0;
+	// call the callback as such. Each value for MAX_VALUES must have
+	// a case (1 to MAX_VALUES)
+	switch (num_vals) {
+	case 0:
+		callback();
+		break;
+	case 1:
+		callback(values[0]);
+		break;
+	case 2: {
+		// If we are dealing with keypairs, need to specify keypair
+		// type. Only do this if keypair is true (generating a PKI keypair).
+		if (keypair)
+			callback(values[0], values[1], keypair_type);
+		else
+			callback(values[0], values[1]);
+		break;
+	}
+	case 3:
+		callback(values[0], values[1], values[2]);
+		break;
+	}
+	// operated on argument successfully.
+	return 1;
 }
 
 static unsigned char parse_ops_exec(int arg_count, char *arguments[])
@@ -156,14 +155,14 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// Check whether the current argument is a valid program operation
 		// generate symmetric keyfile.
 		// Help argument
-		arg_executed = parse_args_vals_call(0, "-h", arguments,
-						    i, arg_count,
-						    (void (*)())help, 0, 0) ||
-			       arg_executed;
+		arg_executed =
+			parse_args_vals_call(0, "-h", arguments, i, arg_count,
+					     (void (*)())help, 0, 0) ||
+			arg_executed;
 		// generate symmetric key file
 		arg_executed =
-			parse_args_vals_call(1, "-gen_sym_key_file", arguments, i,
-					     arg_count,
+			parse_args_vals_call(1, "-gen_sym_key_file", arguments,
+					     i, arg_count,
 					     (void (*)())key_file_generate_sym,
 					     0, 0) ||
 			arg_executed;
@@ -182,26 +181,26 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 				0) ||
 			arg_executed;
 		// generate classical keypair
-		arg_executed =
-			parse_args_vals_call(
-				2, "-gen_classical_keypair", arguments, i, arg_count,
-				(void (*)())key_file_generate_keypair, 1,
-				key_file_classical) ||
-			arg_executed;
+		arg_executed = parse_args_vals_call(
+				       2, "-gen_classical_keypair", arguments,
+				       i, arg_count,
+				       (void (*)())key_file_generate_keypair, 1,
+				       key_file_classical) ||
+			       arg_executed;
 		// generate quantum keypair
-		arg_executed =
-			parse_args_vals_call(
-				2, "-gen_quantum_keypair", arguments, i, arg_count,
-				(void (*)())key_file_generate_keypair, 1,
-				key_file_quantum) ||
-			arg_executed;
+		arg_executed = parse_args_vals_call(
+				       2, "-gen_quantum_keypair", arguments, i,
+				       arg_count,
+				       (void (*)())key_file_generate_keypair, 1,
+				       key_file_quantum) ||
+			       arg_executed;
 		// generate hybrid keypair
-		arg_executed =
-			parse_args_vals_call(
-				2, "-gen_hybrid_keypair", arguments, i, arg_count,
-				(void (*)())key_file_generate_keypair, 1,
-				key_file_hybrid) ||
-			arg_executed;
+		arg_executed = parse_args_vals_call(
+				       2, "-gen_hybrid_keypair", arguments, i,
+				       arg_count,
+				       (void (*)())key_file_generate_keypair, 1,
+				       key_file_hybrid) ||
+			       arg_executed;
 	}
 	// no recognized argument was executed. Or failure.
 	if (!arg_executed)
