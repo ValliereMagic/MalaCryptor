@@ -8,10 +8,10 @@
 // retrieve the key using the path specified, and execute the callback operation
 // with the key pulled from the file (encrypt or decrypt)
 static int call_file_crypto(
-	const char *target_file, const char *source_file,
+	const char *source_file, const char *target_file,
 	const char *key_file_path,
 	int (*operation)(
-		const char *target_file, const char *source_file,
+		const char *source_file, const char *target_file,
 		const unsigned char encryption_key
 			[crypto_secretstream_xchacha20poly1305_KEYBYTES]))
 {
@@ -29,7 +29,7 @@ static int call_file_crypto(
 	if (!key_file_get_sym_key(key_file_path, encryption_key))
 		return -1;
 	// operate on the file with the key extracted.
-	int success = operation(target_file, source_file, encryption_key);
+	int success = operation(source_file, target_file, encryption_key);
 	// overwrite and unlock the encryption_key
 	sodium_munlock(encryption_key,
 		       crypto_secretstream_xchacha20poly1305_KEYBYTES);
@@ -38,18 +38,18 @@ static int call_file_crypto(
 
 // dummy function that calls file_crypto with the goal to encrypt the source file
 // and store the ciphertext in the target file.
-int file_sym_enc_encrypt_key_file(const char *target_file,
-				  const char *source_file,
+int file_sym_enc_encrypt_key_file(const char *source_file,
+				  const char *target_file,
 				  const char *key_file_path)
 {
-	return call_file_crypto(target_file, source_file, key_file_path,
+	return call_file_crypto(source_file, target_file, key_file_path,
 				file_sym_enc_encrypt_key);
 }
 
 // encrypt the source file with xchacha20poly1305 and store the ciphertext
 // in the target file using the encryption key passed.
 int file_sym_enc_encrypt_key(
-	const char *target_file, const char *source_file,
+	const char *source_file, const char *target_file,
 	const unsigned char
 		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES])
 {
@@ -110,8 +110,8 @@ int file_sym_enc_encrypt_key(
 
 // dummy function to call file_crypto with the operation of decrypting the source
 // file and putting the plaintext into the target file.
-int file_sym_enc_decrypt_key_file(const char *target_file,
-				  const char *source_file,
+int file_sym_enc_decrypt_key_file(const char *source_file,
+				  const char *target_file,
 				  const char *key_file_path)
 {
 	return call_file_crypto(target_file, source_file, key_file_path,
