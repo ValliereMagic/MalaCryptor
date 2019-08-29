@@ -3,12 +3,12 @@ project('mala_cryptor', 'c')
 sodium_dep = dependency('libsodium')
 openssl_dep = dependency('openssl')
 # Link OQS based on the operating system we are building on
-oqs_includes = '../lib/include'
+oqs_includes = include_directories(['../lib/include'])
 oqs_link = '-loqs'
 if (build_machine.system() == 'cygwin')
-    frodo_dep = declare_dependency(include_directories: [oqs_includes], link_args: ['-L../lib/win', oqs_link])
+    oqs_dep = declare_dependency(include_directories: oqs_includes, link_args: ['-L../lib/win', oqs_link])
 elif (build_machine.system() == 'linux')
-    frodo_dep = declare_dependency(include_directories: [oqs_includes], link_args: ['-L../lib/gnu_linux', oqs_link])
+    oqs_dep = declare_dependency(include_directories: oqs_includes, link_args: ['-L../lib/gnu_linux', oqs_link])
 else
     error('Error! Not on a supported build platform. Halting.')
 endif
@@ -27,5 +27,5 @@ mala_cryptor_src = ['src/mala_cryptor.c', 'src/key_file.c', 'src/file_sym_enc.c'
 c_flags = ['-O2', '-march=native']
 executable('mala_cryptor',
            mala_cryptor_src,
-           dependencies : [sodium_dep, openssl_dep, frodo_dep],
+           dependencies : [sodium_dep, openssl_dep, oqs_dep],
            c_args : c_flags)
