@@ -18,8 +18,16 @@ void help(void)
 	puts("\t\t-sym_enc_file [sourcefile] [out file] [key file] to encrypt\n"
 	     "\t\t\ta file using a key file");
 
+	puts("\t\t-sym_pass_enc_file [sourcefile] [out file] [password]\n"
+	     "\t\t\t(if password contains spaces must use quotes)\n"
+	     "\t\t\tto encrypt a file using a password");
+
 	puts("\t\t-sym_dec_file [sourcefile] [out file] [key file] to decrypt\n"
 	     "\t\t\ta file using a key file");
+
+	puts("\t\t-sym_pass_dec_file [sourcefile] [out file] [password]\n"
+	     "\t\t\t(if password contains spaces must use quotes)\n"
+	     "\t\t\tto decrypt a file using a password");
 
 	puts("\tPublic-Private File Encryption Options:");
 
@@ -173,12 +181,28 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 				(void (*)())file_sym_enc_encrypt_key_file, 0,
 				0) ||
 			arg_executed;
+		// encrypt a file using a provided password
+		arg_executed =
+			parse_args_vals_call(
+				3, "-sym_pass_enc_file", arguments, i,
+				arg_count,
+				(void (*)())file_sym_enc_encrypt_key_password,
+				0, 0) ||
+			arg_executed;
 		// decrypt file with symmetric key file
 		arg_executed =
 			parse_args_vals_call(
 				3, "-sym_dec_file", arguments, i, arg_count,
 				(void (*)())file_sym_enc_decrypt_key_file, 0,
 				0) ||
+			arg_executed;
+		// decrypt file using a provided password
+		arg_executed =
+			parse_args_vals_call(
+				3, "-sym_pass_dec_file", arguments, i,
+				arg_count,
+				(void (*)())file_sym_enc_decrypt_key_password,
+				0, 0) ||
 			arg_executed;
 		// generate classical keypair
 		arg_executed = parse_args_vals_call(

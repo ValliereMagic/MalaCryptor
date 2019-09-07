@@ -1,6 +1,5 @@
 #ifndef KEY_FILE_H
 #define KEY_FILE_H
-
 // Generate a random key using the function provided by the
 // libsodium library and store it in the file at the path passed.
 unsigned char key_file_generate_sym(const char *dest_file);
