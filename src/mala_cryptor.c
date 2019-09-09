@@ -77,7 +77,11 @@ static inline unsigned char check_optarg_val(const char *value)
 // num_vals is the number of arguments that the callback takes
 // arg_key is the argument we are checking the values for
 // arguments[] is the full array of command line arguments
-// index is the current iteration index of the arguments array
+//
+// index is a pointer to the current iteration index of the arguments array.
+// it is to be incremented by the number of values the current argument has
+// so that they are not parsed and checked to see if they are commands.
+//
 // arg count is the total number of elements in arguments[]
 // callback is the callback to call with num_vals number of arguments
 // (in the values array)
@@ -92,18 +96,18 @@ static inline unsigned char check_optarg_val(const char *value)
 // 1 argument successfully processed and operated on.
 #define MAX_VALUES 3
 static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
-					  char *arguments[], int index,
+					  char *arguments[], int *index,
 					  int arg_count, void (*callback)(),
 					  unsigned char keypair,
 					  enum keypair_type keypair_type)
 {
 	// General format for error messages.
-	static const char *error_fmt =
+	static const char *const error_fmt =
 		"Error. Invalid or no argument(s) for '%s'. Exiting.\n";
 	// Make sure there is room for an option after this string
-	const unsigned char args_left = (arg_count - 1) - index;
+	const unsigned char args_left = (arg_count - 1) - *index;
 	// Current possible argument to look at
-	const char *current_argument = arguments[index];
+	const char *current_argument = arguments[*index];
 	// one to max values values for the argument being parsed.
 	// values to pass to the callback
 	static const char *values[MAX_VALUES];
@@ -118,7 +122,7 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 	for (size_t i = 0; i < num_vals; i++) {
 		// set the value at i as the supposed value
 		// of the argument (-foo bar bar bar)
-		values[i] = arguments[index + (i + 1)];
+		values[i] = arguments[*index + (i + 1)];
 		// Make sure the value isn't another argument
 		// (starts with [-]) otherwise error
 		if (!check_optarg_val(values[i])) {
@@ -149,6 +153,9 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 		callback(values[0], values[1], values[2]);
 		break;
 	}
+	// increment index to not check the arguments of the current
+	// command as a new command.
+	*index += num_vals;
 	// operated on argument successfully.
 	return 1;
 }
@@ -164,27 +171,27 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// generate symmetric keyfile.
 		// Help argument
 		arg_executed =
-			parse_args_vals_call(0, "-h", arguments, i, arg_count,
+			parse_args_vals_call(0, "-h", arguments, &i, arg_count,
 					     (void (*)())help, 0, 0) ||
 			arg_executed;
 		// generate symmetric key file
 		arg_executed =
 			parse_args_vals_call(1, "-gen_sym_key_file", arguments,
-					     i, arg_count,
+					     &i, arg_count,
 					     (void (*)())key_file_generate_sym,
 					     0, 0) ||
 			arg_executed;
 		// encrypt file with symmetric key file
 		arg_executed =
 			parse_args_vals_call(
-				3, "-sym_enc_file", arguments, i, arg_count,
+				3, "-sym_enc_file", arguments, &i, arg_count,
 				(void (*)())file_sym_enc_encrypt_key_file, 0,
 				0) ||
 			arg_executed;
 		// encrypt a file using a provided password
 		arg_executed =
 			parse_args_vals_call(
-				3, "-sym_pass_enc_file", arguments, i,
+				3, "-sym_pass_enc_file", arguments, &i,
 				arg_count,
 				(void (*)())file_sym_enc_encrypt_key_password,
 				0, 0) ||
@@ -192,14 +199,14 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// decrypt file with symmetric key file
 		arg_executed =
 			parse_args_vals_call(
-				3, "-sym_dec_file", arguments, i, arg_count,
+				3, "-sym_dec_file", arguments, &i, arg_count,
 				(void (*)())file_sym_enc_decrypt_key_file, 0,
 				0) ||
 			arg_executed;
 		// decrypt file using a provided password
 		arg_executed =
 			parse_args_vals_call(
-				3, "-sym_pass_dec_file", arguments, i,
+				3, "-sym_pass_dec_file", arguments, &i,
 				arg_count,
 				(void (*)())file_sym_enc_decrypt_key_password,
 				0, 0) ||
@@ -207,20 +214,20 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		// generate classical keypair
 		arg_executed = parse_args_vals_call(
 				       2, "-gen_classical_keypair", arguments,
-				       i, arg_count,
+				       &i, arg_count,
 				       (void (*)())key_file_generate_keypair, 1,
 				       key_file_classical) ||
 			       arg_executed;
 		// generate quantum keypair
 		arg_executed = parse_args_vals_call(
-				       2, "-gen_quantum_keypair", arguments, i,
+				       2, "-gen_quantum_keypair", arguments, &i,
 				       arg_count,
 				       (void (*)())key_file_generate_keypair, 1,
 				       key_file_quantum) ||
 			       arg_executed;
 		// generate hybrid keypair
 		arg_executed = parse_args_vals_call(
-				       2, "-gen_hybrid_keypair", arguments, i,
+				       2, "-gen_hybrid_keypair", arguments, &i,
 				       arg_count,
 				       (void (*)())key_file_generate_keypair, 1,
 				       key_file_hybrid) ||
@@ -246,8 +253,7 @@ int main(int arg_count, char *arguments[])
 		return 1;
 	}
 	// Begin operations
-	if (!parse_ops_exec(arg_count, arguments)) {
+	if (!parse_ops_exec(arg_count, arguments))
 		return EXIT_FAILURE;
-	}
 	return EXIT_SUCCESS;
 }
