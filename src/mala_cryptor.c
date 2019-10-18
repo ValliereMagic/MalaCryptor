@@ -105,7 +105,7 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 	static const char *const error_fmt =
 		"Error. Invalid or no argument(s) for '%s'. Exiting.\n";
 	// Make sure there is room for an option after this string
-	const unsigned char args_left = (arg_count - 1) - *index;
+	const unsigned char args_left = (arg_count - 1) - (*index);
 	// Current possible argument to look at
 	const char *current_argument = arguments[*index];
 	// one to max values values for the argument being parsed.
@@ -155,7 +155,7 @@ static unsigned char parse_args_vals_call(size_t num_vals, const char *arg_key,
 	}
 	// increment index to not check the arguments of the current
 	// command as a new command.
-	*index += num_vals;
+	(*index) += num_vals;
 	// operated on argument successfully.
 	return 1;
 }
@@ -166,7 +166,7 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 	// (parse || arg_executed) so its true even if only one arg is ever
 	// executed.
 	unsigned char arg_executed = 0;
-	for (int i = 0; i < arg_count; i++) {
+	for (int i = 1; i < arg_count; i++) {
 		// Check whether the current argument is a valid program operation
 		// generate symmetric keyfile.
 		// Help argument
