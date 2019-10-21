@@ -23,7 +23,7 @@ if not compiler.has_header('winsock.h') and not compiler.has_header('arpa/inet.h
     error('Error! Header for conversion to network byte order and back required! Halting.')
 endif
 # Build malacryptor executable
-mala_cryptor_src = ['src/mala_cryptor.c', 'src/key_file.c', 'src/file_sym_enc.c', 'src/key_derive.c']
+mala_cryptor_src = ['src/mala_cryptor.c', 'src/key_file.c', 'src/file_sym_enc.c', 'src/key_derive.c', 'src/m_string_get_string.c']
 c_flags = ['-O2', '-march=native']
 executable('mala_cryptor',
            mala_cryptor_src,
