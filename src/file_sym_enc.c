@@ -1,5 +1,54 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <sodium.h>
+#ifdef _WIN32
+#include <windows.h>
+static int toggle_echo(unsigned char on_off)
+{
+	HANDLE handle_stdin = GetStdHandle(STD_INPUT_HANDLE);
+	unsigned long mode = 0;
+	// Retrieve the current mode of the terminal
+	int err = GetConsoleMode(handle_stdin, &mode);
+	if (err == 0) {
+		fputs("Error. Unable to get terminal info.\n", stderr);
+		return 0;
+	}
+	if (on_off)
+		mode = mode & (ENABLE_ECHO_INPUT);
+	else
+		mode = mode & (~ENABLE_ECHO_INPUT);
+	err = SetConsoleMode(handle_stdin, mode);
+	if (err == 0) {
+		fputs("Error. Unable to set terminal info to updated mode.\n",
+		      stderr);
+		return 0;
+	} else {
+		return 1;
+	}
+}
+#else
+#include <termios.h>
+static int toggle_echo(unsigned char on_off)
+{
+	struct termios terminal_info;
+	int err = tcgetattr(STDIN_FILENO, &terminal_info);
+	if (err != 0) {
+		fputs("Error. Unable to get terminal info.\n", stderr);
+		return 0;
+	}
+	if (on_off)
+		terminal_info.c_lflag |= ECHO;
+	else
+		terminal_info.c_lflag &= ~((tcflag_t)ECHO)err =
+			tcsetattr(STDIN_FILENO, TCSANOW, &terminal_info);
+	if (err != 0) {
+		fputs("Error. Unable to set terminal info to updated mode.\n",
+		      stderr);
+		return 0;
+	}
+	return 1;
+}
+#endif
 #include "file_sym_enc.h"
 #include "key_file.h"
 #include "key_derive.h"
@@ -225,14 +274,72 @@ int file_sym_enc_encrypt_key_file(const char *const source_file,
 				encrypt_key);
 }
 
+// result must be freed.
+static char *get_string(void)
+{
+	char *string = NULL;
+	size_t current_chunk_count = 1;
+	char char_buf;
+	// read the password in, in 4 byte chunks to a dynamically
+	// allocated string.
+	while ((char_buf = getchar()) != '\n') {
+		string = realloc(string, current_chunk_count);
+		if (string == NULL) {
+			fputs("Error. System out of memory.\n", stderr);
+			exit(1);
+		}
+		string[current_chunk_count - 1] = char_buf;
+		current_chunk_count++;
+	}
+	string = realloc(string, current_chunk_count);
+	string[current_chunk_count - 1] = '\0';
+	printf("The string: %s\n", string);
+	return string;
+}
+
+// returned password must be freed.
+char *get_password_from_user(void)
+{
+	// before asking the user for a password, turn off terminal echo...
+	toggle_echo(0);
+	unsigned char match;
+	char *password;
+	do {
+		match = 1;
+		fputs("Enter a password: ", stdout);
+		password = get_string();
+		if (password == NULL) {
+			fputs("Error. password null in get_password_from_user.\n",
+			      stderr);
+			exit(1);
+		}
+		fputs("Enter it again: ", stdout);
+		char *duplicate = get_string();
+		if (duplicate == NULL) {
+			free(password);
+			fputs("Error. duplicate password null in get_password_from_user.\n",
+			      stderr);
+			exit(1);
+		}
+		if (strcmp(password, duplicate) != 0) {
+			match = 0;
+			free(password);
+		}
+		free(duplicate);
+	} while (match == 0);
+	toggle_echo(1);
+	return password;
+}
+
 // dummy function that calls file_crypto with the goal to encrypt the source file
 // using a password and store the ciphertext in the target file.
 int file_sym_enc_encrypt_key_password(const char *const source_file,
-				      const char *const target_file,
-				      const char *const password)
+				      const char *const target_file)
 {
+	char *password = get_password_from_user();
 	return call_file_crypto(source_file, target_file, NULL, password,
 				encrypt_key);
+	free(password);
 }
 
 // dummy function to call file_crypto with the operation of decrypting the source
@@ -248,9 +355,10 @@ int file_sym_enc_decrypt_key_file(const char *const source_file,
 // dummy function to call file_crypto with the operation of decrypting the source
 // file using a password and putting the plaintext into the target file.
 int file_sym_enc_decrypt_key_password(const char *const source_file,
-				      const char *const target_file,
-				      const char *const password)
+				      const char *const target_file)
 {
+	char *password = get_password_from_user();
 	return call_file_crypto(source_file, target_file, NULL, password,
 				decrypt_key);
+	free(password);
 }
