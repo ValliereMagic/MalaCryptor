@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "m_string_get_string.h"
+#include "m_string.h"
 
 // result must be freed.
 // Cannot return NULL string. Will exit first.

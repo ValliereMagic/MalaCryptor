@@ -1,5 +1,5 @@
-#ifndef M_STRING_GET_STRING_H
-#define M_STRING_GET_STRING_H
+#ifndef M_STRING
+#define M_STRING
 // String structure
 struct m_string {
 	char *arr;
