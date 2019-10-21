@@ -71,7 +71,7 @@ static int toggle_echo(unsigned char on_off)
 #include "file_sym_enc.h"
 #include "key_file.h"
 #include "key_derive.h"
-#include "m_string_get_string.h"
+#include "m_string.h"
 
 #define CHUNK_SIZE 4096
 
