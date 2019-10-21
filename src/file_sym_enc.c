@@ -5,53 +5,73 @@
 #include <windows.h>
 static int toggle_echo(unsigned char on_off)
 {
+	// Get a handle to the standard in file
 	HANDLE handle_stdin = GetStdHandle(STD_INPUT_HANDLE);
-	unsigned long mode = 0;
+	// Make sure we were successfully able to do so.
+	if (handle_stdin == INVALID_HANDLE_VALUE) {
+		fputs("Error. Unable to get a handle for stdin.\n", stderr);
+		return 0;
+	}
+	// The mode we are going to change to either ON or OFF
+	DWORD mode = 0;
 	// Retrieve the current mode of the terminal
 	int err = GetConsoleMode(handle_stdin, &mode);
+	// Make sure we were able to get the terminal's current mode.
 	if (err == 0) {
 		fputs("Error. Unable to get terminal info.\n", stderr);
 		return 0;
 	}
+	// Complete the operation specified by the function parameter.
 	if (on_off)
-		mode = mode & (ENABLE_ECHO_INPUT);
+		// set terminal echo mode to ON
+		mode = mode | (ENABLE_ECHO_INPUT);
 	else
-		mode = mode & (~ENABLE_ECHO_INPUT);
+		// OFF
+		mode = mode & ~((DWORD)ENABLE_ECHO_INPUT);
 	err = SetConsoleMode(handle_stdin, mode);
+	// Make sure we were able to apply the changes that have been made.
 	if (err == 0) {
 		fputs("Error. Unable to set terminal info to updated mode.\n",
 		      stderr);
 		return 0;
-	} else {
-		return 1;
 	}
+	// successful.
+	return 1;
 }
 #else
 #include <termios.h>
 static int toggle_echo(unsigned char on_off)
 {
 	struct termios terminal_info;
+	// Get the current attributes of the terminal
 	int err = tcgetattr(STDIN_FILENO, &terminal_info);
+	// Make sure we were able to get them successfully.
 	if (err != 0) {
 		fputs("Error. Unable to get terminal info.\n", stderr);
 		return 0;
 	}
+	// Set the attribute depending on the function parameter
+	// passed.
 	if (on_off)
 		terminal_info.c_lflag |= ECHO;
 	else
-		terminal_info.c_lflag &= ~((tcflag_t)ECHO)err =
-			tcsetattr(STDIN_FILENO, TCSANOW, &terminal_info);
+		terminal_info.c_lflag &= ~((tcflag_t)ECHO);
+	// Apply the set attribute to the terminal.
+	err = tcsetattr(STDIN_FILENO, TCSANOW, &terminal_info);
+	// Make sure we were able to set the attribute successfully.
 	if (err != 0) {
 		fputs("Error. Unable to set terminal info to updated mode.\n",
 		      stderr);
 		return 0;
 	}
+	// successful.
 	return 1;
 }
 #endif
 #include "file_sym_enc.h"
 #include "key_file.h"
 #include "key_derive.h"
+#include "m_string_get_string.h"
 
 #define CHUNK_SIZE 4096
 
@@ -274,59 +294,41 @@ int file_sym_enc_encrypt_key_file(const char *const source_file,
 				encrypt_key);
 }
 
-// result must be freed.
-static char *get_string(void)
-{
-	char *string = NULL;
-	size_t current_chunk_count = 1;
-	char char_buf;
-	// read the password in, in 4 byte chunks to a dynamically
-	// allocated string.
-	while ((char_buf = getchar()) != '\n') {
-		string = realloc(string, current_chunk_count);
-		if (string == NULL) {
-			fputs("Error. System out of memory.\n", stderr);
-			exit(1);
-		}
-		string[current_chunk_count - 1] = char_buf;
-		current_chunk_count++;
-	}
-	string = realloc(string, current_chunk_count);
-	string[current_chunk_count - 1] = '\0';
-	printf("The string: %s\n", string);
-	return string;
-}
-
 // returned password must be freed.
-char *get_password_from_user(void)
+// return password must be sodium_munlocked
+// Will not return a NULL result. Will exit first.
+struct m_string get_password_from_user(void)
 {
 	// before asking the user for a password, turn off terminal echo...
 	toggle_echo(0);
 	unsigned char match;
-	char *password;
+	struct m_string password;
 	do {
+		// Set condition to exit loop if user enters identical passwords.
 		match = 1;
 		fputs("Enter a password: ", stdout);
-		password = get_string();
-		if (password == NULL) {
-			fputs("Error. password null in get_password_from_user.\n",
-			      stderr);
-			exit(1);
-		}
+		// Retrieve password from stdin.
+		password = m_string_get_string();
+		// Lock the password's memory from being swapped.
+		sodium_mlock(password.arr, password.len);
 		fputs("Enter it again: ", stdout);
-		char *duplicate = get_string();
-		if (duplicate == NULL) {
-			free(password);
-			fputs("Error. duplicate password null in get_password_from_user.\n",
-			      stderr);
-			exit(1);
-		}
-		if (strcmp(password, duplicate) != 0) {
+		// Pull in a duplicate to compare to the password.
+		struct m_string duplicate = m_string_get_string();
+		// Lock the duplicate's memory from being swapped.
+		sodium_mlock(duplicate.arr, duplicate.len);
+		// Check whether the password and the duplicate
+		// are the same.
+		if (strcmp(password.arr, duplicate.arr) != 0) {
 			match = 0;
-			free(password);
+			// Unlock the password's memory and free it.
+			sodium_munlock(password.arr, password.len);
+			free(password.arr);
 		}
-		free(duplicate);
+		// Unlock the duplicate's memory and free it.
+		sodium_munlock(duplicate.arr, duplicate.len);
+		free(duplicate.arr);
 	} while (match == 0);
+	// Turn terminal echo back on
 	toggle_echo(1);
 	return password;
 }
@@ -336,10 +338,12 @@ char *get_password_from_user(void)
 int file_sym_enc_encrypt_key_password(const char *const source_file,
 				      const char *const target_file)
 {
-	char *password = get_password_from_user();
-	return call_file_crypto(source_file, target_file, NULL, password,
+	struct m_string password = get_password_from_user();
+	return call_file_crypto(source_file, target_file, NULL, password.arr,
 				encrypt_key);
-	free(password);
+	// Unlock the password's memory and free it.
+	sodium_munlock(password.arr, password.len);
+	free(password.arr);
 }
 
 // dummy function to call file_crypto with the operation of decrypting the source
@@ -357,8 +361,10 @@ int file_sym_enc_decrypt_key_file(const char *const source_file,
 int file_sym_enc_decrypt_key_password(const char *const source_file,
 				      const char *const target_file)
 {
-	char *password = get_password_from_user();
-	return call_file_crypto(source_file, target_file, NULL, password,
+	struct m_string password = get_password_from_user();
+	return call_file_crypto(source_file, target_file, NULL, password.arr,
 				decrypt_key);
-	free(password);
+	// Unlock the password's memory and free it.
+	sodium_munlock(password.arr, password.len);
+	free(password.arr);
 }
