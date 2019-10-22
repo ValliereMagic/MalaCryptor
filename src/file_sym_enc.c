@@ -1,73 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sodium.h>
-#ifdef _WIN32
-#include <windows.h>
-static int toggle_echo(unsigned char on_off)
-{
-	// Get a handle to the standard in file
-	HANDLE handle_stdin = GetStdHandle(STD_INPUT_HANDLE);
-	// Make sure we were successfully able to do so.
-	if (handle_stdin == INVALID_HANDLE_VALUE) {
-		fputs("Error. Unable to get a handle for stdin.\n", stderr);
-		return 0;
-	}
-	// The mode we are going to change to either ON or OFF
-	DWORD mode = 0;
-	// Retrieve the current mode of the terminal
-	int err = GetConsoleMode(handle_stdin, &mode);
-	// Make sure we were able to get the terminal's current mode.
-	if (err == 0) {
-		fputs("Error. Unable to get terminal info.\n", stderr);
-		return 0;
-	}
-	// Complete the operation specified by the function parameter.
-	if (on_off)
-		// set terminal echo mode to ON
-		mode = mode | (ENABLE_ECHO_INPUT);
-	else
-		// OFF
-		mode = mode & ~((DWORD)ENABLE_ECHO_INPUT);
-	err = SetConsoleMode(handle_stdin, mode);
-	// Make sure we were able to apply the changes that have been made.
-	if (err == 0) {
-		fputs("Error. Unable to set terminal info to updated mode.\n",
-		      stderr);
-		return 0;
-	}
-	// successful.
-	return 1;
-}
-#else
-#include <termios.h>
-static int toggle_echo(unsigned char on_off)
-{
-	struct termios terminal_info;
-	// Get the current attributes of the terminal
-	int err = tcgetattr(STDIN_FILENO, &terminal_info);
-	// Make sure we were able to get them successfully.
-	if (err != 0) {
-		fputs("Error. Unable to get terminal info.\n", stderr);
-		return 0;
-	}
-	// Set the attribute depending on the function parameter
-	// passed.
-	if (on_off)
-		terminal_info.c_lflag |= ECHO;
-	else
-		terminal_info.c_lflag &= ~((tcflag_t)ECHO);
-	// Apply the set attribute to the terminal.
-	err = tcsetattr(STDIN_FILENO, TCSANOW, &terminal_info);
-	// Make sure we were able to set the attribute successfully.
-	if (err != 0) {
-		fputs("Error. Unable to set terminal info to updated mode.\n",
-		      stderr);
-		return 0;
-	}
-	// successful.
-	return 1;
-}
-#endif
 #include "file_sym_enc.h"
 #include "key_file.h"
 #include "key_derive.h"
@@ -294,51 +227,12 @@ int file_sym_enc_encrypt_key_file(const char *const source_file,
 				encrypt_key);
 }
 
-// returned password must be freed.
-// return password must be sodium_munlocked
-// Will not return a NULL result. Will exit first.
-struct m_string get_password_from_user(void)
-{
-	// before asking the user for a password, turn off terminal echo...
-	toggle_echo(0);
-	unsigned char match;
-	struct m_string password;
-	do {
-		// Set condition to exit loop if user enters identical passwords.
-		match = 1;
-		fputs("Enter a password: ", stdout);
-		// Retrieve password from stdin.
-		password = m_string_get_string();
-		// Lock the password's memory from being swapped.
-		sodium_mlock(password.arr, password.len);
-		fputs("Enter it again: ", stdout);
-		// Pull in a duplicate to compare to the password.
-		struct m_string duplicate = m_string_get_string();
-		// Lock the duplicate's memory from being swapped.
-		sodium_mlock(duplicate.arr, duplicate.len);
-		// Check whether the password and the duplicate
-		// are the same.
-		if (strcmp(password.arr, duplicate.arr) != 0) {
-			match = 0;
-			// Unlock the password's memory and free it.
-			sodium_munlock(password.arr, password.len);
-			free(password.arr);
-		}
-		// Unlock the duplicate's memory and free it.
-		sodium_munlock(duplicate.arr, duplicate.len);
-		free(duplicate.arr);
-	} while (match == 0);
-	// Turn terminal echo back on
-	toggle_echo(1);
-	return password;
-}
-
 // dummy function that calls file_crypto with the goal to encrypt the source file
 // using a password and store the ciphertext in the target file.
 int file_sym_enc_encrypt_key_password(const char *const source_file,
 				      const char *const target_file)
 {
-	struct m_string password = get_password_from_user();
+	struct m_string password = m_string_request_password();
 	return call_file_crypto(source_file, target_file, NULL, password.arr,
 				encrypt_key);
 	// Unlock the password's memory and free it.
@@ -361,7 +255,7 @@ int file_sym_enc_decrypt_key_file(const char *const source_file,
 int file_sym_enc_decrypt_key_password(const char *const source_file,
 				      const char *const target_file)
 {
-	struct m_string password = get_password_from_user();
+	struct m_string password = m_string_request_password();
 	return call_file_crypto(source_file, target_file, NULL, password.arr,
 				decrypt_key);
 	// Unlock the password's memory and free it.
