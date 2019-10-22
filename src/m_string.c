@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sodium.h>
 #include "m_string.h"
 #ifdef _WIN32
@@ -42,6 +43,7 @@ static int toggle_echo(unsigned char on_off)
 }
 #else
 #include <termios.h>
+#include <unistd.h>
 // Toggling echo on POSIX platform
 static int toggle_echo(unsigned char on_off)
 {
