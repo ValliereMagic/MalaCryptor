@@ -56,7 +56,7 @@ int key_file_get_sym_key(
 {
 	FILE *key_file = fopen(key_file_path, "rb");
 	//make sure that the length of the key in key file is correct
-	if (!key_file_verify_length(
+	if (!key_file_verify_xchacha20poly1305_length(
 		    key_file_path,
 		    crypto_secretstream_xchacha20poly1305_KEYBYTES)) {
 		fclose(key_file);
@@ -69,84 +69,62 @@ int key_file_get_sym_key(
 	return 1;
 }
 
-// Generate a quantum keypair using FrodoKEM and store in the
-// destination file.
-static unsigned char key_file_generate_quantum_keypair(FILE *pkey_file,
-						       FILE *skey_file)
+// verify that the file passed is the correct length to be a key for
+// xchacha20poly1305 (256bit == 32bytes)
+int key_file_verify_xchacha20poly1305_length(const char *key_file_path,
+					     size_t correct_len)
 {
-	// Generate Quantum Resistant KEM keypair
-	unsigned char skey[OQS_KEM_frodokem_1344_aes_length_secret_key];
-	unsigned char pkey[OQS_KEM_frodokem_1344_aes_length_public_key];
-	// Lock memory where keys will be held
-	if ((sodium_mlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key) !=
-	     0) ||
-	    (sodium_mlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key) !=
-	     0)) {
-		fputs("Error! unable to lock key memory! (key_pair_quantum)\n",
+	//make sure that the length of the key in key file is correct
+	if (key_file_get_size(key_file_path) != correct_len) {
+		fputs("Error. the length of the key in the key file is incorrect. Exiting.\n",
 		      stderr);
+		return 0;
 	}
-	OQS_KEM_frodokem_1344_aes_keypair(pkey, skey);
-	// Format the key lengths into network byte order
-	unsigned char skey_len[2];
-	unsigned char pkey_len[2];
-	*((unsigned short *)skey_len) =
-		htons(OQS_KEM_frodokem_1344_aes_length_secret_key);
-	*((unsigned short *)pkey_len) =
-		htons(OQS_KEM_frodokem_1344_aes_length_public_key);
-	// Append the lengths to the key files.
-	fwrite(skey_len, 2, 1, skey_file);
-	fwrite(pkey_len, 2, 1, pkey_file);
-	// Write the keys to their respective files
-	fwrite(skey, 1, OQS_KEM_frodokem_1344_aes_length_secret_key, skey_file);
-	fwrite(pkey, 1, OQS_KEM_frodokem_1344_aes_length_public_key, pkey_file);
-	// Unlock the memory held by the keys, and zero out
-	sodium_munlock(skey, OQS_KEM_frodokem_1344_aes_length_secret_key);
-	sodium_munlock(pkey, OQS_KEM_frodokem_1344_aes_length_public_key);
 	return 1;
 }
 
-// Generate a classical key exchange keypair using libsodium
-// and store in the destination file.
-static unsigned char key_file_generate_classical_keypair(FILE *pkey_file,
-							 FILE *skey_file)
+struct keypair_gen_info {
+	// Keyfiles to write into
+	// already at the correct index
+	// to begin writing at
+	FILE *pkey_file;
+	FILE *skey_file;
+	// The respective lengths of the
+	// public key and the private key
+	unsigned short pkey_len;
+	unsigned short skey_len;
+	// The gen_keypair function, represented in the order
+	// pub key, then private key, for generation.
+	int (*gen_keypair)(unsigned char *pkey, unsigned char *skey);
+};
+
+static unsigned int
+key_file_generate_keypair_winfo(struct keypair_gen_info *info)
 {
-	// Generate classical keypair
-	unsigned char cl_skey[crypto_kx_SECRETKEYBYTES];
-	unsigned char cl_pkey[crypto_kx_PUBLICKEYBYTES];
-	// Lock memory where keys will be held
-	if ((sodium_mlock(cl_skey, crypto_kx_SECRETKEYBYTES) != 0) ||
-	    (sodium_mlock(cl_pkey, crypto_kx_PUBLICKEYBYTES) != 0)) {
-		fputs("Error! unable to lock key memory! (key_pair_classic)\n",
+	// Allocate the memory that the keys are going to be stored into.
+	unsigned char skey[info->skey_len];
+	unsigned char pkey[info->pkey_len];
+	// Lock the memory so that it should not be swapped to disk
+	if (sodium_mlock(skey, info->skey_len) != 0 ||
+	    sodium_mlock(pkey, info->pkey_len) != 0) {
+		fputs("Error! unable to lock key memory! (keypair gen)\n",
 		      stderr);
 	}
-	crypto_kx_keypair(cl_pkey, cl_skey);
+	// Generate the keypair into the allocated memory.
+	info->gen_keypair(pkey, skey);
 	// Format the key lengths into network byte order
-	unsigned char cl_skey_len[2];
-	unsigned char cl_pkey_len[2];
-	*((unsigned short *)cl_skey_len) = htons(crypto_kx_SECRETKEYBYTES);
-	*((unsigned short *)cl_pkey_len) = htons(crypto_kx_PUBLICKEYBYTES);
-	// Append the lengths to the key files
-	fwrite(cl_skey_len, 2, 1, skey_file);
-	fwrite(cl_pkey_len, 2, 1, pkey_file);
+	uint16_t skey_len = htons(info->skey_len);
+	uint16_t pkey_len = htons(info->pkey_len);
+	// Write the lengths to the start of the respective files
+	fwrite(&skey_len, 2, 1, info->skey_file);
+	fwrite(&pkey_len, 2, 1, info->pkey_file);
 	// Write the keys to their respective files
-	fwrite(cl_skey, 1, crypto_kx_SECRETKEYBYTES, skey_file);
-	fwrite(cl_pkey, 1, crypto_kx_PUBLICKEYBYTES, pkey_file);
-	// Unlock the memory held by the keys, and zero out
-	sodium_munlock(cl_skey, crypto_kx_SECRETKEYBYTES);
-	sodium_munlock(cl_pkey, crypto_kx_PUBLICKEYBYTES);
+	fwrite(skey, 1, skey_len, info->skey_file);
+	fwrite(pkey, 1, info->pkey_len, info->pkey_file);
+	// Unlock the memory held by the keys, also zeroing them out.
+	sodium_munlock(skey, info->skey_len);
+	sodium_munlock(pkey, info->pkey_len);
 	return 1;
-}
-
-// Generate both types of keys, and store both in a hybrid file where
-// both keys are stored in sequence (quantum first, and then classical)
-static unsigned char key_file_generate_hybrid_keypair(FILE *pkey_file,
-						      FILE *skey_file)
-{
-	unsigned char q_success =
-		key_file_generate_quantum_keypair(pkey_file, skey_file);
-	unsigned char c_success =
-		key_file_generate_classical_keypair(pkey_file, skey_file);
-	return (q_success && c_success);
 }
 
 // Generate a keypair for sending a file to another person by sending the
@@ -166,25 +144,37 @@ unsigned char key_file_generate_keypair(const char *dest_pkey_file,
 	if ((pkey_file == NULL) || (skey_file == NULL)) {
 		return 0;
 	}
+	// Define the structures detailing how to generate
+	// the different types of keypairs.
+	struct keypair_gen_info quantum_info = {
+		.pkey_file = pkey_file,
+		.skey_file = skey_file,
+		.pkey_len = OQS_KEM_frodokem_1344_aes_length_public_key,
+		.skey_len = OQS_KEM_frodokem_1344_aes_length_secret_key,
+		.gen_keypair = OQS_KEM_frodokem_1344_aes_keypair
+	};
+	struct keypair_gen_info classical_info = {
+		.pkey_file = pkey_file,
+		.skey_file = skey_file,
+		.pkey_len = crypto_kx_PUBLICKEYBYTES,
+		.skey_len = crypto_kx_PUBLICKEYBYTES,
+		.gen_keypair = crypto_kx_keypair
+	};
 	unsigned char success = 1;
 	// Choose and generate.
 	switch (type) {
 	// Generate keypair, and check whether the result was success
 	// or failure.
 	case key_file_classical:
-		success = (key_file_generate_classical_keypair(pkey_file,
-							       skey_file)) &&
-			  success;
+		success = key_file_generate_keypair_winfo(&classical_info);
 		break;
 	case key_file_quantum:
-		success = (key_file_generate_quantum_keypair(pkey_file,
-							     skey_file)) &&
-			  success;
+		success = key_file_generate_keypair_winfo(&quantum_info);
 		break;
 	case key_file_hybrid:
-		success = (key_file_generate_hybrid_keypair(pkey_file,
-							    skey_file)) &&
-			  success;
+		success = key_file_generate_keypair_winfo(&quantum_info);
+		success = success &&
+			  key_file_generate_keypair_winfo(&classical_info);
 		break;
 	}
 	// We are finished generating the key files, close them.
@@ -216,17 +206,4 @@ static long key_file_get_size(const char *file_name)
 	//close the file
 	fclose(file);
 	return size;
-}
-
-// verify that the file passed is the correct length to be a key for
-// xchacha20poly1305 (256bit == 32bytes)
-int key_file_verify_length(const char *key_file_path, size_t correct_len)
-{
-	//make sure that the length of the key in key file is correct
-	if (key_file_get_size(key_file_path) != correct_len) {
-		fputs("Error. the length of the key in the key file is incorrect. Exiting.\n",
-		      stderr);
-		return 0;
-	}
-	return 1;
 }
