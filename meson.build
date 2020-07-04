@@ -14,10 +14,6 @@ else
 endif
 # Check for required system headers
 compiler = meson.get_compiler('c')
-if not compiler.has_header('getopt.h')
-    error('Error! Getopt not found! Halting.')
-endif
-
 # Make sure that the compiler has either of these headers.
 if not compiler.has_header('winsock.h') and not compiler.has_header('arpa/inet.h')
     error('Error! Header for conversion to network byte order and back required! Halting.')
