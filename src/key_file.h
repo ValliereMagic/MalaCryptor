@@ -12,7 +12,7 @@ int key_file_get_sym_key(
 		encryption_key[crypto_secretstream_xchacha20poly1305_KEYBYTES]);
 // verify that the file passed is the correct length to be a key for
 // xchacha20poly1305 (256bit == 32bytes)
-int key_file_verify_xchacha20poly1305_length(const char *key_file_path,
+unsigned short key_file_verify_length(const char *key_file_path,
 					     size_t correct_len);
 enum keypair_type { key_file_classical, key_file_quantum, key_file_hybrid };
 // Generate a keypair for sending a file to another person by sending the
