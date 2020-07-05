@@ -56,7 +56,7 @@ int key_file_get_sym_key(
 {
 	FILE *key_file = fopen(key_file_path, "rb");
 	//make sure that the length of the key in key file is correct
-	if (!key_file_verify_xchacha20poly1305_length(
+	if (!key_file_verify_length(
 		    key_file_path,
 		    crypto_secretstream_xchacha20poly1305_KEYBYTES)) {
 		fclose(key_file);
@@ -69,10 +69,34 @@ int key_file_get_sym_key(
 	return 1;
 }
 
+// Get the length of the file name passed in bytes.
+static long key_file_get_size(const char *file_name)
+{
+	long size;
+	FILE *file;
+	//open the file in the mode to read bytes
+	file = fopen(file_name, "rb");
+	//make sure that the file exists.
+	if (file == NULL) {
+		fprintf(stderr,
+			"Error. Unable to determine the size of %s. "
+			"File pointer is NULL.\n",
+			file_name);
+		return -1;
+	}
+	//go to the end of the file
+	fseek(file, 0, SEEK_END);
+	//record the length of the file in size
+	size = ftell(file);
+	//close the file
+	fclose(file);
+	return size;
+}
+
 // verify that the file passed is the correct length to be a key for
 // xchacha20poly1305 (256bit == 32bytes)
-int key_file_verify_xchacha20poly1305_length(const char *key_file_path,
-					     size_t correct_len)
+unsigned short key_file_verify_length(const char *key_file_path,
+				      size_t correct_len)
 {
 	//make sure that the length of the key in key file is correct
 	if (key_file_get_size(key_file_path) != correct_len) {
@@ -96,7 +120,29 @@ struct keypair_gen_info {
 	// The gen_keypair function, represented in the order
 	// pub key, then private key, for generation.
 	int (*gen_keypair)(unsigned char *pkey, unsigned char *skey);
+	// Handle the result of the gen_keypair function,
+	// turning the result into either a 1 for success or a 0
+	// for failure.
+	int (*handle_error)(int value);
 };
+
+// Functions to change the error results into
+// the format we want to return.
+// 0 means failure, (false);
+// 1 means success, (true);
+static int handle_OQS_error(int value)
+{
+	if (value == OQS_SUCCESS)
+		return 1;
+	return 0;
+}
+
+static int handle_sodium_error(int value)
+{
+	if (value == 0)
+		return 1;
+	return 0;
+}
 
 static unsigned int
 key_file_generate_keypair_winfo(struct keypair_gen_info *info)
@@ -111,7 +157,11 @@ key_file_generate_keypair_winfo(struct keypair_gen_info *info)
 		      stderr);
 	}
 	// Generate the keypair into the allocated memory.
-	info->gen_keypair(pkey, skey);
+	if (!(info->handle_error(info->gen_keypair(pkey, skey)))) {
+		fputs("Error! Failure generating the keypair. (keypair gen)\n",
+		      stderr);
+		return 0;
+	}
 	// Format the key lengths into network byte order
 	uint16_t skey_len = htons(info->skey_len);
 	uint16_t pkey_len = htons(info->pkey_len);
@@ -151,14 +201,16 @@ unsigned char key_file_generate_keypair(const char *dest_pkey_file,
 		.skey_file = skey_file,
 		.pkey_len = OQS_KEM_frodokem_1344_aes_length_public_key,
 		.skey_len = OQS_KEM_frodokem_1344_aes_length_secret_key,
-		.gen_keypair = OQS_KEM_frodokem_1344_aes_keypair
+		.gen_keypair = OQS_KEM_frodokem_1344_aes_keypair,
+		.handle_error = handle_OQS_error
 	};
 	struct keypair_gen_info classical_info = {
 		.pkey_file = pkey_file,
 		.skey_file = skey_file,
 		.pkey_len = crypto_kx_PUBLICKEYBYTES,
 		.skey_len = crypto_kx_PUBLICKEYBYTES,
-		.gen_keypair = crypto_kx_keypair
+		.gen_keypair = crypto_kx_keypair,
+		.handle_error = handle_sodium_error
 	};
 	unsigned char success = 1;
 	// Choose and generate.
@@ -182,28 +234,4 @@ unsigned char key_file_generate_keypair(const char *dest_pkey_file,
 	fclose(skey_file);
 	// Return the outcome
 	return success;
-}
-
-// Get the length of the file name passed in bytes.
-static long key_file_get_size(const char *file_name)
-{
-	long size;
-	FILE *file;
-	//open the file in the mode to read bytes
-	file = fopen(file_name, "rb");
-	//make sure that the file exists.
-	if (file == NULL) {
-		fprintf(stderr,
-			"Error. Unable to determine the size of %s. "
-			"File pointer is NULL.\n",
-			file_name);
-		return -1;
-	}
-	//go to the end of the file
-	fseek(file, 0, SEEK_END);
-	//record the length of the file in size
-	size = ftell(file);
-	//close the file
-	fclose(file);
-	return size;
 }
