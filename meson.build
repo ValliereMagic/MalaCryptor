@@ -2,6 +2,7 @@ project('mala_cryptor', 'c')
 # Required system libraries
 sodium_dep = dependency('libsodium')
 openssl_dep = dependency('openssl')
+check_dep = dependency('check')
 # Link OQS based on the operating system we are building on
 oqs_includes = include_directories(['../lib/include'])
 oqs_link = '-loqs'
@@ -21,7 +22,16 @@ endif
 # Build malacryptor executable
 mala_cryptor_src = ['src/mala_cryptor.c', 'src/key_file.c', 'src/file_sym_enc.c', 'src/key_derive.c', 'src/m_string.c']
 c_flags = ['-O2', '-march=native']
+deps = [sodium_dep, openssl_dep, oqs_dep]
 executable('mala_cryptor',
            mala_cryptor_src,
-           dependencies : [sodium_dep, openssl_dep, oqs_dep],
+           dependencies : deps,
            c_args : c_flags)
+
+#Build Tests
+test_deps = [sodium_dep, openssl_dep, oqs_dep, check_dep]
+tests_c_flags = ['-g', '-march=native', '-I../src']
+mala_cryptor_tests = executable('mala_cryptor_tests',
+                                'tests/mala_cryptor-tests.c',
+                                dependencies : test_deps,
+                                c_args : tests_c_flags)
