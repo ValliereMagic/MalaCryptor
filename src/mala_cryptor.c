@@ -16,7 +16,7 @@ struct parsable_argument {
 	// generates a public / private keypair
 	unsigned char keypair;
 	// enum representing the keypair type
-	// 0 of keypair bool is 0. Otherwise
+	// 0 if keypair bool is 0. Otherwise
 	// specify valid keypair type.
 	enum keypair_type keypair_type;
 };
