@@ -6,33 +6,33 @@
 
 struct parsable_argument {
 	// Number of values this argument takes
-	size_t num_vals;
+	const size_t num_vals;
 	// The string key for this argument
-	const char *arg_key;
+	const char *const arg_key;
 	// Callback to call with the values
 	// of this argument
 	void (*callback)();
 	// Boolean value for whether this argument
 	// generates a public / private keypair
-	unsigned char keypair;
+	const unsigned char keypair;
 	// enum representing the keypair type
 	// 0 if keypair bool is 0. Otherwise
 	// specify valid keypair type.
-	enum keypair_type keypair_type;
+	const enum keypair_type keypair_type;
 };
 
 // Check whether the current opt(key) matched the arg_key(value) and
 // there are enough arguments afterwords to satisfy the values
-// it requires (has_next)
-static unsigned char is_opt(const char *key, const char *value,
-			    const unsigned char has_next)
+// it requires (has_required_args)
+static unsigned char is_opt(const char *const key, const char *const value,
+			    const unsigned char has_required_args)
 {
 	// make sure that the key and the value(arg from arguments
 	// string) match.
 	if (!(strcmp(key, value) == 0))
 		return 0;
 	// Make sure there are enough values to satisfy the argument
-	if (!has_next) {
+	if (!has_required_args) {
 		fprintf(stderr,
 			"Error. Option '%s' requires one or more argument(s). "
 			"Exiting.\n",
@@ -42,9 +42,9 @@ static unsigned char is_opt(const char *key, const char *value,
 	return 1;
 }
 
-// Make sure the value isn't another argument
+// Make sure the value isn't another option
 // (starts with [-]) otherwise error
-static inline unsigned char check_optarg_val(const char *value)
+static inline unsigned char check_optarg_val(const char *const value)
 {
 	// make sure that value doesn't start with '-'
 	// This can't happen, otherwise not a valid value
@@ -74,9 +74,9 @@ static inline unsigned char check_optarg_val(const char *value)
 // that an error actually occurred.
 // 1 argument successfully processed and operated on.
 #define MAX_VALUES 3
-static unsigned char
-parse_args_vals_call(const struct parsable_argument *const arg,
-		     char *arguments[], int *index, int arg_count)
+static char parse_args_vals_call(const struct parsable_argument *const arg,
+				 const char *const arguments[],
+				 int *const index, const int arg_count)
 {
 	// General format for error messages.
 	static const char *const error_fmt =
@@ -93,22 +93,44 @@ parse_args_vals_call(const struct parsable_argument *const arg,
 	// it requires
 	if (!is_opt(current_argument, arg->arg_key,
 		    (args_left >= arg->num_vals)))
-		// Did not operate on an argument, but not necessarily a failure.
+		// Did not operate on an argument, but not necessarily a
+		// complete failure. Other arguments the user provided could
+		// be successfully carried out.
 		return 0;
 	// Make sure the proposed values for the argument make
 	// sense.
-	for (size_t i = 0; i < arg->num_vals; i++) {
+	for (size_t i = 1; i <= arg->num_vals; i++) {
 		// set the value at i as the supposed value
 		// of the argument (-foo bar bar bar)
-		values[i] = arguments[*index + (i + 1)];
+		values[i - 1] = arguments[*index + i];
 		// Make sure the value isn't another argument
 		// (starts with [-]) otherwise error
-		if (!check_optarg_val(values[i])) {
+		if (!check_optarg_val(values[i - 1])) {
 			// failure
 			fprintf(stderr, error_fmt, arg->arg_key);
-			return 0;
+			return -1;
 		}
 	}
+	// Build the casts allowing calling functions with multiple numbers
+	// of arguments (1 to MAX_VALUES)
+	// argument with one string value option
+	void (*single_arg_callback)(const char *value1) =
+		(void (*)(const char *))arg->callback;
+	// argument with two string value options and an option
+	// specifying keypair generation type
+	void (*double_arg_callback_keypair)(const char *value1,
+					    const char *value2,
+					    const enum keypair_type type) =
+		(void (*)(const char *value1, const char *value2,
+			  const enum keypair_type type))arg->callback;
+	// argument with two string value options
+	void (*double_arg_callback)(const char *value1, const char *value2) =
+		(void (*)(const char *value1, const char *value2))arg->callback;
+	// argument with three string value options
+	void (*triple_arg_callback)(const char *value1, const char *value2,
+				    const char *value3) =
+		(void (*)(const char *value1, const char *value2,
+			  const char *value3))arg->callback;
 	// call the callback as such. Each value for MAX_VALUES must have
 	// a case (1 to MAX_VALUES)
 	switch (arg->num_vals) {
@@ -116,19 +138,20 @@ parse_args_vals_call(const struct parsable_argument *const arg,
 		arg->callback();
 		break;
 	case 1:
-		arg->callback(values[0]);
+		single_arg_callback(values[0]);
 		break;
 	case 2: {
 		// If we are dealing with keypairs, need to specify keypair
 		// type. Only do this if keypair is true (generating a PKI keypair).
 		if (arg->keypair)
-			arg->callback(values[0], values[1], arg->keypair_type);
+			double_arg_callback_keypair(values[0], values[1],
+						    arg->keypair_type);
 		else
-			arg->callback(values[0], values[1]);
+			double_arg_callback(values[0], values[1]);
 		break;
 	}
 	case 3:
-		arg->callback(values[0], values[1], values[2]);
+		triple_arg_callback(values[0], values[1], values[2]);
 		break;
 	}
 	// increment index to not check the arguments of the current
@@ -138,7 +161,7 @@ parse_args_vals_call(const struct parsable_argument *const arg,
 	return 1;
 }
 
-void help(void)
+static void help(void)
 {
 	puts("MalaCryptor Help:");
 
@@ -176,7 +199,8 @@ void help(void)
 	     "\t\t\tkeypair in one file");
 }
 
-static unsigned char parse_ops_exec(int arg_count, char *arguments[])
+static unsigned char parse_ops_exec(const int arg_count,
+				    const char *const arguments[])
 {
 	// The possible arguments to be processed:
 	static const struct parsable_argument parsable_arguments[] = {
@@ -185,37 +209,37 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 		  .arg_key = "-h",
 		  .callback = help,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Generate symmetric key file
 		{ .num_vals = 1,
 		  .arg_key = "-gen_sym_key_file",
 		  .callback = (void (*)())key_file_generate_sym,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Encrypt file with symmetric key file
 		{ .num_vals = 3,
 		  .arg_key = "-sym_enc_file",
 		  .callback = (void (*)())file_sym_enc_encrypt_key_file,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Encrypt file with a provided password
 		{ .num_vals = 2,
 		  .arg_key = "-sym_pass_enc_file",
 		  .callback = (void (*)())file_sym_enc_encrypt_key_password,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Decrypt file with symmetric key file
 		{ .num_vals = 3,
 		  .arg_key = "-sym_dec_file",
 		  .callback = (void (*)())file_sym_enc_decrypt_key_file,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Decrypt file with a provided password
 		{ .num_vals = 2,
 		  .arg_key = "-sym_pass_dec_file",
 		  .callback = (void (*)())file_sym_enc_decrypt_key_password,
 		  .keypair = 0,
-		  .keypair_type = 0 },
+		  .keypair_type = (enum keypair_type)0 },
 		// Generate a classical keypair
 		{ .num_vals = 2,
 		  .arg_key = "-gen_classical_keypair",
@@ -241,16 +265,26 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 	// Set to true if an argument exists and was executed successfully
 	// (parse || arg_executed) so its true even if only one arg is ever
 	// executed.
-	unsigned char arg_executed = 0;
-	for (int i = 1; i < arg_count; i++) {
+	char arg_executed = 0;
+	for (int arg_index = 1; arg_index < arg_count; arg_index++) {
 		// Check whether the current argument is a valid program operation,
 		// and execute the required callback with its arguments if it is.
-		for (size_t j = 0; j < argument_array_size; j++) {
-			arg_executed =
-				parse_args_vals_call(&parsable_arguments[j],
-						     arguments, &i,
-						     arg_count) ||
-				arg_executed;
+		for (size_t parsible_arg_index = 0;
+		     parsible_arg_index < argument_array_size;
+		     parsible_arg_index++) {
+			char execution_success = parse_args_vals_call(
+				&parsable_arguments[parsible_arg_index],
+				arguments, &arg_index, arg_count);
+			// logical or the execution success of this argument
+			// with the the success of all the other arguments
+			// signifying whether at least one argument passed
+			// was successfully carried out.
+			arg_executed = execution_success || arg_executed;
+			// This argument was executed, so stop searching for it.
+			// Continue on with processing the next argument.
+			if (execution_success > 0) {
+				break;
+			}
 		}
 	}
 	// no recognized argument was executed. Or failure.
@@ -259,7 +293,10 @@ static unsigned char parse_ops_exec(int arg_count, char *arguments[])
 	return 1;
 }
 
-int main(int arg_count, char *arguments[])
+// If this is the tests binary, include the tests header instead
+// of using this main function.
+#ifndef TESTING
+int main(const int arg_count, const char *const arguments[])
 {
 	//if the user doesn't specify an argument, present the help screen.
 	if (arg_count == 1) {
@@ -277,3 +314,6 @@ int main(int arg_count, char *arguments[])
 		return EXIT_FAILURE;
 	return EXIT_SUCCESS;
 }
+#else
+#include "mala_cryptor-tests.h"
+#endif

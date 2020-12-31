@@ -14,7 +14,7 @@ int key_file_get_sym_key(
 // xchacha20poly1305 (256bit == 32bytes)
 unsigned short key_file_verify_length(const char *key_file_path,
 					     size_t correct_len);
-enum keypair_type { key_file_classical, key_file_quantum, key_file_hybrid };
+enum keypair_type { key_file_classical = 1, key_file_quantum, key_file_hybrid };
 // Generate a keypair for sending a file to another person by sending the
 // symmetric key using a key encapsulation mechanism
 unsigned char key_file_generate_keypair(const char *dest_pkey_file,
